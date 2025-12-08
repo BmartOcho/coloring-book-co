@@ -46,13 +46,15 @@ export async function convertToColoringBook(
 - No shading, gradients, or color fills - only clean line art
 - Similar composition to the original photo`,
           background: "opaque",
-          output_format: "png",
+          response_format: "b64_json",
         });
 
         // Extract base64 image from response
+        console.log("OpenAI response:", JSON.stringify(response, null, 2));
         const imageBase64 = response.data?.[0]?.b64_json ?? "";
         
         if (!imageBase64) {
+          console.error("No b64_json in response. Response structure:", response.data?.[0]);
           throw new Error("No image data received from OpenAI");
         }
 
