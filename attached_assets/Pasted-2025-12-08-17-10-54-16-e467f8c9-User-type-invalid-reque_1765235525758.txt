@@ -1,0 +1,153 @@
+2025-12-08 17:10:54.16
+e467f8c9
+User
+type: 'invalid_request_error'
+
+2025-12-08 17:10:54.16
+e467f8c9
+User
+}
+2025-12-08 17:10:54.16
+e467f8c9
+User
+'x-request-id': '44ad0a7e-2d91-4f33-aa66-42b36d7e7ca2'
+2025-12-08 17:10:54.16
+e467f8c9
+User
+at OpenAI.makeRequest (/home/runner/workspace/dist/index.cjs:34191:24)
+2025-12-08 17:10:54.16
+e467f8c9
+User
+Conversion error: Error
+2025-12-08 17:10:54.16
+e467f8c9
+User
+'content-length': '177',
+2025-12-08 17:10:54.16
+e467f8c9
+User
+at async convertToColoringBook (/home/runner/workspace/dist/index.cjs:34600:10)
+2025-12-08 17:10:54.16
+e467f8c9
+User
+at _APIError.generate (/home/runner/workspace/dist/index.cjs:27676:14)
+2025-12-08 17:10:54.16
+e467f8c9
+User
+message: "Unknown parameter: 'response_format'.",
+2025-12-08 17:10:54.16
+e467f8c9
+User
+param: 'response_format',
+2025-12-08 17:10:54.16
+e467f8c9
+User
+type: 'invalid_request_error',
+2025-12-08 17:10:54.16
+e467f8c9
+User
+at async pRetry (/home/runner/workspace/dist/index.cjs:34572:22)
+2025-12-08 17:10:54.16
+e467f8c9
+User
+Error converting image: BadRequestError: 400 Unknown parameter: 'response_format'.
+2025-12-08 17:10:54.16
+e467f8c9
+User
+code: 'unknown_parameter'
+2025-12-08 17:10:54.16
+e467f8c9
+User
+at pRetry.retries (/home/runner/workspace/dist/index.cjs:34632:15)
+2025-12-08 17:10:54.16
+e467f8c9
+User
+headers: Headers {
+2025-12-08 17:10:54.16
+e467f8c9
+User
+param: 'response_format',
+2025-12-08 17:10:54.16
+e467f8c9
+User
+at async convertToColoringBook (/home/runner/workspace/dist/index.cjs:34600:10)
+2025-12-08 17:10:54.16
+e467f8c9
+User
+},
+2025-12-08 17:10:54.16
+e467f8c9
+User
+requestID: '44ad0a7e-2d91-4f33-aa66-42b36d7e7ca2',
+2025-12-08 17:10:54.16
+e467f8c9
+User
+at async pRetry (/home/runner/workspace/dist/index.cjs:34572:22)
+2025-12-08 17:10:54.16
+e467f8c9
+User
+status: 400,
+2025-12-08 17:10:54.16
+e467f8c9
+User
+at async /home/runner/workspace/dist/index.cjs:34663:33
+2025-12-08 17:10:54.16
+e467f8c9
+User
+error: {
+2025-12-08 17:10:54.16
+e467f8c9
+User
+'content-type': 'application/json',
+2025-12-08 17:10:54.16
+e467f8c9
+User
+code: 'unknown_parameter',
+2025-12-08 17:10:54.16
+e467f8c9
+User
+at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-12-08 17:10:54.16
+e467f8c9
+User
+via: '1.1 google',
+2025-12-08 17:10:54.16
+e467f8c9
+User
+at async /home/runner/workspace/dist/index.cjs:34663:33 {
+2025-12-08 17:10:54.16
+e467f8c9
+User
+at OpenAI.makeStatusError (/home/runner/workspace/dist/index.cjs:34033:21)
+2025-12-08 17:10:54.16
+e467f8c9
+User
+at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-12-08 17:10:54.16
+e467f8c9
+User
+at async pRetry.retries (/home/runner/workspace/dist/index.cjs:34606:26)
+2025-12-08 17:10:54.16
+e467f8c9
+User
+},
+2025-12-08 17:10:54.16
+e467f8c9
+User
+date: 'Mon, 08 Dec 2025 23:10:53 GMT',
+2025-12-08 17:10:54.17
+e467f8c9
+User
+11:10:54 PM [express] POST /api/convert 500 in 5471ms :: {"error":"400 Unknown parameter: 'response_format'."}
+2025-12-08 17:10:54.17
+e467f8c9
+User
+11:10:54 PM [express] POST /api/convert 500 in 5471ms :: {"error":"400 Unknown parameter: 'response_format'."}
+2025-12-08 17:10:54.17
+e467f8c9
+User
+11:10:54 PM [express] POST /api/convert 500 in 5471ms :: {"error":"400 Unknown parameter: 'response_format'."}
+2025-12-08 17:10:54.17
+e467f8c9
+User
+11:10:54 PM [express] POST /api/convert 500 in 5471ms :: {"error":"400 Unknown parameter: 'response_format'."}
