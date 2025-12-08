@@ -1,18 +1,18 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useEffect, useState } from "react";
 
-type Theme = "light" | "dark";
-
-type ThemeProviderProps = {
-  children: React.ReactNode;
-  defaultTheme?: Theme;
-};
+export type Theme = "light" | "dark";
 
 type ThemeProviderState = {
   theme: Theme;
   setTheme: (theme: Theme) => void;
 };
 
-const ThemeProviderContext = createContext<ThemeProviderState | undefined>(
+type ThemeProviderProps = {
+  children: React.ReactNode;
+  defaultTheme?: Theme;
+};
+
+export const ThemeContext = createContext<ThemeProviderState | undefined>(
   undefined
 );
 
@@ -38,16 +38,8 @@ export function ThemeProvider({
   }, [theme]);
 
   return (
-    <ThemeProviderContext.Provider value={{ theme, setTheme }}>
+    <ThemeContext.Provider value={{ theme, setTheme }}>
       {children}
-    </ThemeProviderContext.Provider>
+    </ThemeContext.Provider>
   );
-}
-
-export function useTheme() {
-  const context = useContext(ThemeProviderContext);
-  if (context === undefined) {
-    throw new Error("useTheme must be used within a ThemeProvider");
-  }
-  return context;
 }
