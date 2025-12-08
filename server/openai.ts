@@ -36,7 +36,7 @@ export async function convertToColoringBook(
         // The prompt is carefully crafted to generate cartoon-style line art suitable for coloring
         const response = await openai.images.edit({
           model: "gpt-image-1",
-          image: [imageFile],
+          image: imageFile,
           prompt: `Convert this photo into a clean, cartoon-style black and white line art drawing suitable for a children's coloring book. The output should have:
 - Bold, clear outlines that are easy to color within
 - Simple, cartoon-like stylization of all features
