@@ -1,18 +1,18 @@
-import { sql } from "drizzle-orm";
-import { pgTable, text, varchar } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
+// Schema for image conversion request
+export const imageConversionRequestSchema = z.object({
+  imageData: z.string(), // base64 encoded image
+  fileName: z.string(),
 });
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
+export type ImageConversionRequest = z.infer<typeof imageConversionRequestSchema>;
+
+// Schema for image conversion response
+export const imageConversionResponseSchema = z.object({
+  originalImage: z.string(), // base64 encoded
+  coloringBookImage: z.string(), // base64 encoded
+  fileName: z.string(),
 });
 
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
+export type ImageConversionResponse = z.infer<typeof imageConversionResponseSchema>;

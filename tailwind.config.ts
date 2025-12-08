@@ -9,6 +9,7 @@ export default {
         lg: ".5625rem", /* 9px */
         md: ".375rem", /* 6px */
         sm: ".1875rem", /* 3px */
+        xl: ".75rem", /* 12px - for child-friendly rounded corners */
       },
       colors: {
         // Flat / base colors (regular buttons)
@@ -86,6 +87,7 @@ export default {
         sans: ["var(--font-sans)"],
         serif: ["var(--font-serif)"],
         mono: ["var(--font-mono)"],
+        heading: ["var(--font-heading)"],
       },
       keyframes: {
         "accordion-down": {
