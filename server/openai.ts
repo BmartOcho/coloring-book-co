@@ -1,4 +1,4 @@
-import OpenAI, { toFile } from "openai";
+import OpenAI from "openai";
 import { Buffer } from "node:buffer";
 import pRetry, { AbortError } from "p-retry";
 
@@ -27,34 +27,53 @@ export async function convertToColoringBook(
   return await pRetry(
     async () => {
       try {
-        // Convert buffer to File object for OpenAI API
-        const imageFile = await toFile(imageBuffer, fileName, {
-          type: "image/png",
-        });
+        // Convert buffer to base64 data URL for the Responses API
+        const base64Image = imageBuffer.toString("base64");
+        const mimeType = fileName.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg";
+        const dataUrl = `data:${mimeType};base64,${base64Image}`;
 
-        // Use gpt-image-1 model to convert photo to coloring book style
-        // The prompt is carefully crafted to generate cartoon-style line art suitable for coloring
-        const response = await openai.images.edit({
-          model: "gpt-image-1",
-          image: imageFile,
-          prompt: `Convert this photo into a clean, cartoon-style black and white line art drawing suitable for a children's coloring book. The output should have:
+        // Use the Responses API with image_generation tool
+        // This is the correct way to use gpt-image-1 for image editing
+        const response = await openai.responses.create({
+          model: "gpt-4.1",
+          input: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "input_text",
+                  text: `Convert this photo into a clean, cartoon-style black and white line art drawing suitable for a children's coloring book. The output should have:
 - Bold, clear outlines that are easy to color within
 - Simple, cartoon-like stylization of all features
 - High contrast black lines on white background
 - Simplified details that maintain recognizability
 - Kid-friendly aesthetic with smooth, rounded shapes
 - No shading, gradients, or color fills - only clean line art
-- Similar composition to the original photo`,
-          background: "opaque",
-          response_format: "b64_json",
+- Similar composition to the original photo`
+                },
+                {
+                  type: "input_image",
+                  image_url: dataUrl,
+                  detail: "auto",
+                }
+              ],
+            }
+          ],
+          tools: [{ type: "image_generation" }],
         });
 
         // Extract base64 image from response
-        console.log("OpenAI response:", JSON.stringify(response, null, 2));
-        const imageBase64 = response.data?.[0]?.b64_json ?? "";
+        console.log("OpenAI response received");
+        
+        // Find the image_generation_call output
+        const imageOutput = response.output?.find(
+          (output: any) => output.type === "image_generation_call"
+        ) as any;
+        
+        const imageBase64 = imageOutput?.result ?? "";
         
         if (!imageBase64) {
-          console.error("No b64_json in response. Response structure:", response.data?.[0]);
+          console.error("No image result in response. Response structure:", JSON.stringify(response, null, 2));
           throw new Error("No image data received from OpenAI");
         }
 

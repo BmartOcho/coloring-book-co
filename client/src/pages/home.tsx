@@ -26,7 +26,7 @@ export default function Home() {
         reader.readAsDataURL(file);
       });
 
-      const response = await apiRequest<ImageConversionResponse>(
+      const response = await apiRequest(
         "POST",
         "/api/convert",
         {
@@ -35,7 +35,8 @@ export default function Home() {
         }
       );
 
-      return response;
+      const data: ImageConversionResponse = await response.json();
+      return data;
     },
     onSuccess: (data) => {
       setColoringBookImage(data.coloringBookImage);
@@ -73,14 +74,42 @@ export default function Home() {
       return;
     }
 
-    setSelectedFile(file);
-    setColoringBookImage("");
+    // Validate minimum image dimensions
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      
+      if (img.width < 64 || img.height < 64) {
+        toast({
+          title: "Image too small",
+          description: "Please upload an image at least 64x64 pixels.",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setOriginalPreview(reader.result as string);
+      setSelectedFile(file);
+      setColoringBookImage("");
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setOriginalPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     };
-    reader.readAsDataURL(file);
+    
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      toast({
+        title: "Invalid image",
+        description: "Could not read the image file. Please try another.",
+        variant: "destructive",
+      });
+    };
+    
+    img.src = objectUrl;
   };
 
   const handleDrop = (e: React.DragEvent) => {
