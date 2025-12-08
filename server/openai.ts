@@ -1,6 +1,6 @@
 import OpenAI, { toFile } from "openai";
 import { Buffer } from "node:buffer";
-import pRetry from "p-retry";
+import pRetry, { AbortError } from "p-retry";
 
 // This is using Replit's AI Integrations service, which provides OpenAI-compatible API access without requiring your own OpenAI API key.
 // Referenced from javascript_openai_ai_integrations blueprint
@@ -50,7 +50,7 @@ export async function convertToColoringBook(
         });
 
         // Extract base64 image from response
-        const imageBase64 = response.data[0]?.b64_json ?? "";
+        const imageBase64 = response.data?.[0]?.b64_json ?? "";
         
         if (!imageBase64) {
           throw new Error("No image data received from OpenAI");
@@ -66,7 +66,7 @@ export async function convertToColoringBook(
         }
         
         // For non-rate-limit errors, throw immediately (don't retry)
-        throw new pRetry.AbortError(error.message || "Failed to convert image to coloring book style");
+        throw new AbortError(error.message || "Failed to convert image to coloring book style");
       }
     },
     {
