@@ -2,14 +2,11 @@ import OpenAI, { toFile } from "openai";
 import { Buffer } from "node:buffer";
 import pRetry, { AbortError } from "p-retry";
 
-// This is using Replit's AI Integrations service, which provides OpenAI-compatible API access without requiring your own OpenAI API key.
-// Referenced from javascript_openai_ai_integrations blueprint
 const client = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
 });
 
-// Helper function to check if error is rate limit or quota violation
 function isRateLimitError(error: any): boolean {
   const errorMsg = error?.message || String(error);
   return (
@@ -27,7 +24,6 @@ export async function convertToColoringBook(
   return await pRetry(
     async () => {
       try {
-        // Determine MIME type from filename
         const ext = fileName.toLowerCase().split(".").pop();
         let mimeType = "image/png";
         if (ext === "jpg" || ext === "jpeg") {
@@ -36,17 +32,16 @@ export async function convertToColoringBook(
           mimeType = "image/webp";
         }
 
-        // Convert buffer to a File object with correct MIME type for the images.edit API
         const imageFile = await toFile(imageBuffer, fileName, {
           type: mimeType,
         });
 
-        // Use the images.edit endpoint with gpt-image-1 model
-        // Note: streaming is not supported by Replit AI Integrations
+        const prompt = "Convert this photo into a clean, Disney-Pixar-style black and white line art drawing suitable for a children's coloring book. The output should have: Bold, clear outlines that are easy to color within. Disney-Pixar-like stylization of all features. High contrast black lines on white background. Accurate details that maintain recognizability. Kid-friendly aesthetic with smooth, rounded shapes. No shading, gradients, or color fills - only clean line art. Keep composition true to the original.";
+
         const response = await client.images.edit({
           model: "gpt-image-1",
           image: imageFile,
-          prompt: "Convert this photo into a clean, Disney-Pixar-style black and white line art drawing suitable for a children's coloring book. The output should have: Bold, clear outlines that are easy to color within. Disney-Pixar-like stylization of all features. High contrast black lines on white background. Accurate details that maintain recognizability. Kid-friendly aesthetic with smooth, rounded shapes. No shading, gradients, or color fills - only clean line art. Keep composition true to the original.",
+          prompt: prompt,
           background: "opaque",
           output_format: "png",
           quality: "high",
@@ -55,27 +50,21 @@ export async function convertToColoringBook(
 
         console.log("OpenAI images.edit response received");
 
-        // gpt-image-1 always returns base64-encoded images
         const imageBase64 = response.data?.[0]?.b64_json;
 
         if (!imageBase64) {
-          console.error(
-            "No image result in response:",
-            JSON.stringify(response, null, 2),
-          );
+          console.error("No image result in response:", JSON.stringify(response, null, 2));
           throw new Error("No image data received from OpenAI");
         }
 
-        return `data:image/png;base64,${imageBase64}`;
+        return "data:image/png;base64," + imageBase64;
       } catch (error: any) {
         console.error("Error converting image:", error);
 
-        // Check if it's a rate limit error
         if (isRateLimitError(error)) {
-          throw error; // Rethrow to trigger p-retry
+          throw error;
         }
 
-        // For non-rate-limit errors, throw immediately (don't retry)
         throw new AbortError(
           error.message || "Failed to convert image to coloring book style",
         );
