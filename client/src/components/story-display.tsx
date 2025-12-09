@@ -1,6 +1,11 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { BookOpen, Download, RotateCcw, ImageIcon } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { BookOpen, Download, RotateCcw, ImageIcon, ShoppingCart, Loader2, Mail } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import type { Story } from "@shared/schema";
 
 interface StoryDisplayProps {
@@ -9,6 +14,47 @@ interface StoryDisplayProps {
 }
 
 export function StoryDisplay({ story, onReset }: StoryDisplayProps) {
+  const [email, setEmail] = useState("");
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [showCheckout, setShowCheckout] = useState(false);
+  const { toast } = useToast();
+
+  const handleCheckout = async () => {
+    if (!email || !email.includes("@")) {
+      toast({
+        title: "Email required",
+        description: "Please enter a valid email address to receive your coloring book.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsCheckingOut(true);
+    try {
+      const response = await apiRequest("POST", "/api/orders/checkout", {
+        storyId: story.id,
+        email,
+      });
+      
+      const data = await response.json();
+      
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      } else {
+        throw new Error("Failed to create checkout session");
+      }
+    } catch (error: any) {
+      console.error("Checkout error:", error);
+      toast({
+        title: "Checkout failed",
+        description: error.message || "Unable to start checkout. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
+
   const handleDownloadStory = () => {
     const storyText = story.sections
       .map((section, idx) => `Chapter ${idx + 1}\n\n${section.generatedText}`)
@@ -103,10 +149,103 @@ export function StoryDisplay({ story, onReset }: StoryDisplayProps) {
           </Button>
         </div>
 
-        <div className="p-4 bg-primary/5 rounded-xl border border-primary/20">
-          <p className="text-sm text-[#2C3E50]/70 dark:text-muted-foreground">
-            <strong className="text-primary">Coming Soon:</strong> Purchase your complete 25-page custom coloring book with professionally printed pages, perfect bound, and shipped to your door!
-          </p>
+        <div className="p-5 bg-gradient-to-r from-primary/10 to-accent/10 rounded-xl border border-primary/20">
+          {!showCheckout ? (
+            <div className="space-y-3">
+              <div className="flex items-start gap-3">
+                <ShoppingCart className="w-6 h-6 text-primary mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="font-heading font-semibold text-lg text-[#2C3E50] dark:text-foreground">
+                    Get Your Personalized Coloring Book!
+                  </h3>
+                  <p className="text-sm text-[#2C3E50]/70 dark:text-muted-foreground mt-1">
+                    Turn {story.characterName}'s story into a beautiful 26-page coloring book with custom illustrations for each chapter.
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex flex-wrap items-center gap-3 text-sm text-[#2C3E50]/60 dark:text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <ImageIcon className="w-4 h-4" /> 25 custom pages
+                </span>
+                <span className="flex items-center gap-1">
+                  <BookOpen className="w-4 h-4" /> Plus cover
+                </span>
+                <span className="flex items-center gap-1">
+                  <Mail className="w-4 h-4" /> Digital download
+                </span>
+              </div>
+              
+              <Button
+                onClick={() => setShowCheckout(true)}
+                className="w-full h-12 rounded-xl font-heading font-semibold bg-primary hover:bg-primary/90 text-white"
+                data-testid="button-order-book"
+              >
+                <ShoppingCart className="w-5 h-5 mr-2" />
+                Order Coloring Book - $45.00
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <Mail className="w-5 h-5 text-primary" />
+                <h3 className="font-heading font-semibold text-lg text-[#2C3E50] dark:text-foreground">
+                  Enter Your Email
+                </h3>
+              </div>
+              
+              <p className="text-sm text-[#2C3E50]/70 dark:text-muted-foreground">
+                We'll send your coloring book to this email when it's ready (usually within 30 minutes).
+              </p>
+              
+              <div className="space-y-2">
+                <Label htmlFor="checkout-email" className="text-[#2C3E50] dark:text-foreground">
+                  Email address
+                </Label>
+                <Input
+                  id="checkout-email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="h-11 rounded-lg"
+                  disabled={isCheckingOut}
+                  data-testid="input-checkout-email"
+                />
+              </div>
+              
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowCheckout(false)}
+                  className="h-11 rounded-lg font-heading"
+                  disabled={isCheckingOut}
+                  data-testid="button-cancel-checkout"
+                >
+                  Cancel
+                </Button>
+                
+                <Button
+                  onClick={handleCheckout}
+                  disabled={isCheckingOut || !email}
+                  className="flex-1 h-11 rounded-lg font-heading font-semibold bg-primary hover:bg-primary/90 text-white"
+                  data-testid="button-proceed-checkout"
+                >
+                  {isCheckingOut ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingCart className="w-5 h-5 mr-2" />
+                      Proceed to Payment
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </Card>
