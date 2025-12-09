@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import OpenAI, { toFile } from "openai";
 import { Buffer } from "node:buffer";
 import pRetry, { AbortError } from "p-retry";
 
@@ -27,50 +27,41 @@ export async function convertToColoringBook(
   return await pRetry(
     async () => {
       try {
-        // Convert buffer to base64 data URL for the Responses API
-        const base64Image = imageBuffer.toString("base64");
-        const mimeType = fileName.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg";
-        const dataUrl = `data:${mimeType};base64,${base64Image}`;
+        // Determine MIME type from filename
+        const ext = fileName.toLowerCase().split('.').pop();
+        let mimeType = 'image/png';
+        if (ext === 'jpg' || ext === 'jpeg') {
+          mimeType = 'image/jpeg';
+        } else if (ext === 'webp') {
+          mimeType = 'image/webp';
+        }
+        
+        // Convert buffer to a File object with correct MIME type for the images.edit API
+        const imageFile = await toFile(imageBuffer, fileName, { type: mimeType });
 
-        // Use the Responses API with image_generation tool
-        // This is the correct way to use gpt-image-1 for image editing
-        const response = await openai.responses.create({
-          model: "gpt-4.1",
-          input: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "input_text",
-                  text: `Convert this photo into a clean, cartoon-style black and white line art drawing suitable for a children's coloring book. The output should have:
+        // Use the images.edit endpoint with gpt-image-1 model
+        // This is the direct API for image editing/transformation
+        const response = await openai.images.edit({
+          model: "gpt-image-1",
+          image: imageFile,
+          prompt: `Convert this photo into a clean, cartoon-style black and white line art drawing suitable for a children's coloring book. The output should have:
 - Bold, clear outlines that are easy to color within
 - Simple, cartoon-like stylization of all features
 - High contrast black lines on white background
 - Simplified details that maintain recognizability
 - Kid-friendly aesthetic with smooth, rounded shapes
 - No shading, gradients, or color fills - only clean line art
-- Similar composition to the original photo`
-                },
-                {
-                  type: "input_image",
-                  image_url: dataUrl,
-                  detail: "auto",
-                }
-              ],
-            }
-          ],
-          tools: [{ type: "image_generation" }],
+- Similar composition to the original photo`,
+          background: "opaque",
+          output_format: "png",
+          quality: "high",
+          size: "1024x1024",
         });
 
-        // Extract base64 image from response
-        console.log("OpenAI response received");
+        console.log("OpenAI images.edit response received");
         
-        // Find the image_generation_call output
-        const imageOutput = response.output?.find(
-          (output: any) => output.type === "image_generation_call"
-        ) as any;
-        
-        const imageBase64 = imageOutput?.result ?? "";
+        // gpt-image-1 always returns base64-encoded images
+        const imageBase64 = response.data?.[0]?.b64_json;
         
         if (!imageBase64) {
           console.error("No image result in response. Response structure:", JSON.stringify(response, null, 2));
