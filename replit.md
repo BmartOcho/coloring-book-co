@@ -2,7 +2,15 @@
 
 ## Overview
 
-A web application that transforms regular photos into cartoon-style coloring book pages using AI. Users can upload images, convert them to line art suitable for coloring, and download the results. The application features a child-friendly, playful interface inspired by Canva's image editor with a warm, approachable color palette.
+A web application that transforms regular photos into cartoon-style coloring book pages using AI. Users can upload images, convert them to line art suitable for coloring, and download the results. 
+
+**Phase 2 (December 2025):** Added Story Builder MVP - users can now create personalized coloring story books after converting their image. Features include:
+- Interactive mad-libs style story creation with AI-generated prompts
+- 4 story types: Adventure, Hero's Tale, Explorer, Career/Dream Story
+- 5 story sections with "Keep Writing" and "Redo Section" controls
+- Complete story display with download option
+
+The application features a child-friendly, playful interface inspired by Canva's image editor with a warm, approachable color palette.
 
 ## User Preferences
 
@@ -84,6 +92,24 @@ Preferred communication style: Simple, everyday language.
 - Prompt engineering: Carefully crafted prompt to generate clean, cartoon-style line art with bold outlines, simplified details, and high contrast suitable for children's coloring
 
 **Error Handling**: Implements retry logic with exponential backoff for rate limit errors (429 status codes) and quota violations.
+
+### AI Story Generation
+
+**Service**: OpenAI Chat Completions via Replit's AI Integrations service.
+
+**Model**: gpt-4.1-mini for story text generation.
+
+**Story Generation Flow**:
+1. `generateSectionPrompt()` - Creates mad-lib style prompts with 2-3 fill-in-the-blank slots
+2. `generateSectionText()` - Generates 100-150 word story sections based on user inputs
+3. Uses JSON response format for structured prompt data
+
+**Story API Endpoints**:
+- `POST /api/stories` - Create new story with character name, type, and image
+- `GET /api/stories/:id` - Get story by ID
+- `POST /api/stories/:id/generate-prompt` - Generate next section's mad-lib prompt
+- `POST /api/stories/:id/submit-section` - Submit user inputs and generate story text
+- `POST /api/stories/:id/redo-section` - Remove last section and allow regeneration
 
 ### Build & Development Tools
 
