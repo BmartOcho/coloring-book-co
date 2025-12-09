@@ -4,7 +4,7 @@ import pRetry, { AbortError } from "p-retry";
 
 // This is using Replit's AI Integrations service, which provides OpenAI-compatible API access without requiring your own OpenAI API key.
 // Referenced from javascript_openai_ai_integrations blueprint
-const openai = new OpenAI({
+const client = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
 });
@@ -40,22 +40,22 @@ export async function convertToColoringBook(
         const imageFile = await toFile(imageBuffer, fileName, { type: mimeType });
 
         // Use the images.edit endpoint with gpt-image-1 model
-        // This is the direct API for image editing/transformation
-        const response = await openai.images.edit({
+        // Note: streaming is not supported by Replit AI Integrations
+        const response = await client.images.edit({
           model: "gpt-image-1",
           image: imageFile,
-          prompt: `Convert this photo into a clean, cartoon-style black and white line art drawing suitable for a children's coloring book. The output should have:
+          prompt: `Convert this photo into a clean, Disney-Pixar-style black and white line art drawing suitable for a children's coloring book. The output should have:
 - Bold, clear outlines that are easy to color within
-- Simple, cartoon-like stylization of all features
+- Simple, Disney-Pixar-like stylization of all features
 - High contrast black lines on white background
-- Simplified details that maintain recognizability
+- Accurate details that maintain recognizability
 - Kid-friendly aesthetic with smooth, rounded shapes
 - No shading, gradients, or color fills - only clean line art
 - Similar composition to the original photo`,
           background: "opaque",
           output_format: "png",
           quality: "high",
-          size: "1024x1024",
+          size: "1024x1536",
         });
 
         console.log("OpenAI images.edit response received");
@@ -64,7 +64,7 @@ export async function convertToColoringBook(
         const imageBase64 = response.data?.[0]?.b64_json;
         
         if (!imageBase64) {
-          console.error("No image result in response. Response structure:", JSON.stringify(response, null, 2));
+          console.error("No image result in response:", JSON.stringify(response, null, 2));
           throw new Error("No image data received from OpenAI");
         }
 
