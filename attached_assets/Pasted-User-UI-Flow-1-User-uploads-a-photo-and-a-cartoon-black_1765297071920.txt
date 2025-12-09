@@ -1,0 +1,34 @@
+User UI Flow
+
+1. User uploads a photo and a cartoon, black and white coloring book page is generated in about a minute. This is the character of the story. 
+	A. Button - user can download the single page as a PNG file. 
+	B. Button - User can generate another image. 
+	C. CTA Button - User decides to purchase full-length custom generated coloring book. 
+
+2. User is moved down the page to a mini-form widget inside a container of sorts, and is asked some questions about the character and their custom storyline. This form will be the basis of the story plot as well as the other images that will be generated later. 
+	A. Questions:
+		- Character name:[text field]
+		- What story would you like to tell? [drop down values] *Once the user makes a selection from the drop 		downs below, I want AI to create a kind of mad-lib set of fil in the blanks. This will enable the user 		to put in as much detail about the character as possible while also letting AI decide the path of the 		story before even getting started. 
+		Options:
+			A. Adventure Story - think treasure hunting, finding a lost civilization, climbing tallest 			mountain, etc...
+			B. Hero's Tale - think fighting dragons, warriors, saving a princess, being brave, etc...
+			C. Explorer Story - think discovering new things on Earth and in deep space or even under the
+			sea, etc...
+			D. What they want to be story - this would be unique and could generate a story about the life
+			of the character of their dreams. if the user prompts the character wants to become a doctor,
+			the story would then consist of all the wonderful paths to becoming a doctor in the modern 
+			world today. going to school, taking the tests, doing residency, the character would be shown
+			going through all of these things all the while growing up and living their dreams. Same could
+			go for a fighter pilot, a fire-person, or any other occupation the user enters that the 
+			character might be interested in. 
+
+3. The story will then be generated based on the answers from the above form. The user should be able to see the story as it is made in real time (if possible) so they can make edits in real time. Once the story is generated, the screen will continue to move downward and the user will be presented with options to purchase their custom coloring book. Options are listed below:
+	A. Pages - drop down list with choices 25; 30; 40; 50
+	B. Quantity - user selects how many books they would like. drop down options, 1; 2; 3; 4; 5; 6; 7; 8; 9; 10; 25; 50; 100
+Once the above selections are made, the user must enter an email and then a button will light up allowing them to push 'create the book' which will trigger processing their selections and generating the entire book in the background. While this continues, the user will be shuffled down the page further where the checkout process will begin. There are scenarios on what to do with the processing books if the user fails to complete checkout. 
+
+4. After all selections have been made, checkout will commence. Users should be able to checkout with convenient choices [PayPal, Stripe, Plaid, CC, etc...] The user will also need to select shipping options, which should be available at this point as well. 
+If there is an abandoned cart, we will use one of the completed pages from the story to tease the user back to finish their purchase. 
+If the user does complete the transaction, they will be notified when their book has completed the generation and we can offer them an online proof before it heads to production. this proof should not be able to be downloaded or printed and can only be viewed via our online proofing system. 
+
+5. After proof approval, the file is saved as a PDF and sent to the printer to be fulfilled and shipped out. 
