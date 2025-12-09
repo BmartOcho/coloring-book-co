@@ -11,7 +11,7 @@ interface OrderDetails {
   email: string;
   totalPages: number;
   pagesGenerated: number;
-  downloadUrl: string | null;
+  pdfUrl: string | null;
   story: {
     characterName: string;
     storyType: string;
@@ -160,8 +160,8 @@ export default function OrderStatusPage() {
             </div>
           )}
 
-          {isComplete && order.downloadUrl && (
-            <a href={order.downloadUrl} target="_blank" rel="noopener noreferrer">
+          {isComplete && order.pdfUrl && (
+            <a href={order.pdfUrl} target="_blank" rel="noopener noreferrer">
               <Button 
                 className="w-full h-12 rounded-xl font-heading font-semibold bg-primary hover:bg-primary/90 text-white"
                 data-testid="button-download"

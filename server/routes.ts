@@ -1,5 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import express from "express";
+import path from "path";
 import { storage } from "./storage";
 import { 
   imageConversionRequestSchema,
@@ -393,6 +395,9 @@ export async function registerRoutes(
       });
     }
   });
+
+  // Serve PDF downloads
+  app.use('/downloads', express.static(path.join(process.cwd(), 'uploads/books')));
 
   return httpServer;
 }
