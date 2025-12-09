@@ -22,22 +22,24 @@ function isRateLimitError(error: any): boolean {
 
 export async function convertToColoringBook(
   imageBuffer: Buffer,
-  fileName: string
+  fileName: string,
 ): Promise<string> {
   return await pRetry(
     async () => {
       try {
         // Determine MIME type from filename
-        const ext = fileName.toLowerCase().split('.').pop();
-        let mimeType = 'image/png';
-        if (ext === 'jpg' || ext === 'jpeg') {
-          mimeType = 'image/jpeg';
-        } else if (ext === 'webp') {
-          mimeType = 'image/webp';
+        const ext = fileName.toLowerCase().split(".").pop();
+        let mimeType = "image/png";
+        if (ext === "jpg" || ext === "jpeg") {
+          mimeType = "image/jpeg";
+        } else if (ext === "webp") {
+          mimeType = "image/webp";
         }
-        
+
         // Convert buffer to a File object with correct MIME type for the images.edit API
-        const imageFile = await toFile(imageBuffer, fileName, { type: mimeType });
+        const imageFile = await toFile(imageBuffer, fileName, {
+          type: mimeType,
+        });
 
         // Use the images.edit endpoint with gpt-image-1 model
         // Note: streaming is not supported by Replit AI Integrations
@@ -54,31 +56,36 @@ export async function convertToColoringBook(
 - Similar composition to the original photo`,
           background: "opaque",
           output_format: "png",
-          quality: "high",
+          quality: "medium",
           size: "1024x1536",
         });
 
         console.log("OpenAI images.edit response received");
-        
+
         // gpt-image-1 always returns base64-encoded images
         const imageBase64 = response.data?.[0]?.b64_json;
-        
+
         if (!imageBase64) {
-          console.error("No image result in response:", JSON.stringify(response, null, 2));
+          console.error(
+            "No image result in response:",
+            JSON.stringify(response, null, 2),
+          );
           throw new Error("No image data received from OpenAI");
         }
 
         return `data:image/png;base64,${imageBase64}`;
       } catch (error: any) {
         console.error("Error converting image:", error);
-        
+
         // Check if it's a rate limit error
         if (isRateLimitError(error)) {
           throw error; // Rethrow to trigger p-retry
         }
-        
+
         // For non-rate-limit errors, throw immediately (don't retry)
-        throw new AbortError(error.message || "Failed to convert image to coloring book style");
+        throw new AbortError(
+          error.message || "Failed to convert image to coloring book style",
+        );
       }
     },
     {
@@ -86,6 +93,6 @@ export async function convertToColoringBook(
       minTimeout: 2000,
       maxTimeout: 128000,
       factor: 2,
-    }
+    },
   );
 }
