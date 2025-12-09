@@ -1,4 +1,61 @@
 import { z } from "zod";
+import { pgTable, text, varchar, boolean, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+
+// Database Tables
+
+// Stories table - stores story data in PostgreSQL
+export const stories = pgTable("stories", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  characterName: text("character_name").notNull(),
+  storyType: varchar("story_type", { length: 20 }).notNull(),
+  characterImageData: text("character_image_data").notNull(),
+  sections: jsonb("sections").notNull().default([]),
+  isComplete: boolean("is_complete").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Orders table - tracks book purchases
+export const orders = pgTable("orders", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  storyId: varchar("story_id", { length: 36 }).notNull().references(() => stories.id),
+  email: text("email").notNull(),
+  stripeSessionId: text("stripe_session_id"),
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
+  status: varchar("status", { length: 20 }).notNull().default("pending"),
+  amountPaid: integer("amount_paid"),
+  pagesGenerated: integer("pages_generated").notNull().default(0),
+  totalPages: integer("total_pages").notNull().default(26),
+  pdfUrl: text("pdf_url"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+});
+
+// Book pages table - stores generated coloring page images
+export const bookPages = pgTable("book_pages", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  orderId: varchar("order_id", { length: 36 }).notNull().references(() => orders.id),
+  pageNumber: integer("page_number").notNull(),
+  pageType: varchar("page_type", { length: 20 }).notNull(),
+  storyText: text("story_text"),
+  imagePrompt: text("image_prompt"),
+  imageData: text("image_data"),
+  status: varchar("status", { length: 20 }).notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Insert schemas for validation
+export const insertStorySchema = createInsertSchema(stories).omit({ createdAt: true });
+export const insertOrderSchema = createInsertSchema(orders).omit({ createdAt: true, completedAt: true });
+export const insertBookPageSchema = createInsertSchema(bookPages).omit({ createdAt: true });
+
+// Types from Drizzle tables
+export type DbStory = typeof stories.$inferSelect;
+export type InsertStory = typeof stories.$inferInsert;
+export type DbOrder = typeof orders.$inferSelect;
+export type InsertOrder = typeof orders.$inferInsert;
+export type DbBookPage = typeof bookPages.$inferSelect;
+export type InsertBookPage = typeof bookPages.$inferInsert;
 
 // Schema for image conversion request
 export const imageConversionRequestSchema = z.object({

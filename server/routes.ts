@@ -10,6 +10,13 @@ import {
 import { convertToColoringBook } from "./openai";
 import { generateSectionPrompt, generateSectionText, getTotalSections } from "./story";
 import { Buffer } from "node:buffer";
+import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
+import { z } from "zod";
+
+const createOrderRequestSchema = z.object({
+  storyId: z.string().min(1, "Story ID is required"),
+  email: z.string().email("Valid email is required"),
+});
 
 export async function registerRoutes(
   httpServer: Server,
@@ -229,6 +236,160 @@ export async function registerRoutes(
       console.error("Redo section error:", error);
       res.status(500).json({ 
         error: error.message || "Failed to redo section" 
+      });
+    }
+  });
+
+  // Get Stripe publishable key
+  app.get("/api/stripe/config", async (req, res) => {
+    try {
+      const publishableKey = await getStripePublishableKey();
+      res.json({ publishableKey });
+    } catch (error: any) {
+      console.error("Stripe config error:", error);
+      res.status(500).json({ 
+        error: error.message || "Failed to get Stripe config" 
+      });
+    }
+  });
+
+  // Create checkout session for coloring book purchase
+  app.post("/api/orders/checkout", async (req, res) => {
+    try {
+      const validationResult = createOrderRequestSchema.safeParse(req.body);
+      
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          error: "Invalid request data",
+          details: validationResult.error.errors 
+        });
+      }
+
+      const { storyId, email } = validationResult.data;
+
+      const story = await storage.getStory(storyId);
+      if (!story) {
+        return res.status(404).json({ error: "Story not found" });
+      }
+
+      if (!story.isComplete) {
+        return res.status(400).json({ error: "Story must be complete before purchasing" });
+      }
+
+      const stripe = await getUncachableStripeClient();
+
+      const prices = await storage.listPrices(true, 1, 0);
+      if (prices.length === 0) {
+        return res.status(500).json({ error: "No pricing available. Please try again later." });
+      }
+      const priceId = prices[0].id;
+
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+
+      const order = await storage.createOrder({
+        storyId,
+        email,
+        status: "pending",
+        totalPages: 26,
+        pagesGenerated: 0,
+      });
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [{
+          price: priceId,
+          quantity: 1,
+        }],
+        mode: 'payment',
+        success_url: `${baseUrl}/order/${order.id}/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${baseUrl}/order/${order.id}/cancel`,
+        customer_email: email,
+        metadata: {
+          orderId: order.id,
+          storyId: storyId,
+          characterName: story.characterName,
+        },
+      });
+
+      await storage.updateOrder(order.id, {
+        stripeSessionId: session.id,
+      });
+
+      res.json({ 
+        checkoutUrl: session.url,
+        orderId: order.id,
+      });
+    } catch (error: any) {
+      console.error("Checkout error:", error);
+      res.status(500).json({ 
+        error: error.message || "Failed to create checkout session" 
+      });
+    }
+  });
+
+  // Get order status
+  app.get("/api/orders/:id", async (req, res) => {
+    try {
+      const order = await storage.getOrder(req.params.id);
+      
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      const story = await storage.getStory(order.storyId);
+
+      res.json({
+        ...order,
+        story: story ? {
+          characterName: story.characterName,
+          storyType: story.storyType,
+        } : null,
+      });
+    } catch (error: any) {
+      console.error("Get order error:", error);
+      res.status(500).json({ 
+        error: error.message || "Failed to get order" 
+      });
+    }
+  });
+
+  // Verify payment and update order status
+  app.post("/api/orders/:id/verify-payment", async (req, res) => {
+    try {
+      const order = await storage.getOrder(req.params.id);
+      
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      if (!order.stripeSessionId) {
+        return res.status(400).json({ error: "No payment session found" });
+      }
+
+      const stripe = await getUncachableStripeClient();
+      const session = await stripe.checkout.sessions.retrieve(order.stripeSessionId);
+
+      if (session.payment_status === 'paid') {
+        await storage.updateOrder(order.id, {
+          status: "paid",
+          amountPaid: session.amount_total,
+          stripePaymentIntentId: session.payment_intent as string,
+        });
+
+        res.json({ 
+          status: "paid",
+          message: "Payment verified successfully" 
+        });
+      } else {
+        res.json({ 
+          status: session.payment_status,
+          message: "Payment not completed" 
+        });
+      }
+    } catch (error: any) {
+      console.error("Verify payment error:", error);
+      res.status(500).json({ 
+        error: error.message || "Failed to verify payment" 
       });
     }
   });
