@@ -1,37 +1,70 @@
-import { type User, type InsertUser } from "@shared/schema";
+import { type Story, type StorySection } from "@shared/schema";
 import { randomUUID } from "crypto";
 
-// modify the interface with any CRUD methods
-// you might need
-
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  getStory(id: string): Promise<Story | undefined>;
+  createStory(story: Omit<Story, "id" | "createdAt">): Promise<Story>;
+  updateStory(id: string, updates: Partial<Story>): Promise<Story | undefined>;
+  addSection(storyId: string, section: StorySection): Promise<Story | undefined>;
+  updateSection(storyId: string, sectionNumber: number, updates: Partial<StorySection>): Promise<Story | undefined>;
 }
 
 export class MemStorage implements IStorage {
-  private users: Map<string, User>;
+  private stories: Map<string, Story>;
 
   constructor() {
-    this.users = new Map();
+    this.stories = new Map();
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async getStory(id: string): Promise<Story | undefined> {
+    return this.stories.get(id);
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
+  async createStory(storyData: Omit<Story, "id" | "createdAt">): Promise<Story> {
     const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+    const story: Story = {
+      ...storyData,
+      id,
+      createdAt: new Date().toISOString(),
+    };
+    this.stories.set(id, story);
+    return story;
+  }
+
+  async updateStory(id: string, updates: Partial<Story>): Promise<Story | undefined> {
+    const story = this.stories.get(id);
+    if (!story) return undefined;
+    
+    const updatedStory = { ...story, ...updates };
+    this.stories.set(id, updatedStory);
+    return updatedStory;
+  }
+
+  async addSection(storyId: string, section: StorySection): Promise<Story | undefined> {
+    const story = this.stories.get(storyId);
+    if (!story) return undefined;
+    
+    const updatedStory = {
+      ...story,
+      sections: [...story.sections, section],
+    };
+    this.stories.set(storyId, updatedStory);
+    return updatedStory;
+  }
+
+  async updateSection(storyId: string, sectionNumber: number, updates: Partial<StorySection>): Promise<Story | undefined> {
+    const story = this.stories.get(storyId);
+    if (!story) return undefined;
+    
+    const updatedSections = story.sections.map(section => 
+      section.sectionNumber === sectionNumber 
+        ? { ...section, ...updates }
+        : section
+    );
+    
+    const updatedStory = { ...story, sections: updatedSections };
+    this.stories.set(storyId, updatedStory);
+    return updatedStory;
   }
 }
 
