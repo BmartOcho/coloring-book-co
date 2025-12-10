@@ -188,12 +188,12 @@ async function generateBook(orderId: string): Promise<void> {
 }
 
 async function generateCoverPage(story: any): Promise<string> {
-  const prompt = `Create a charming children's coloring book cover page.
+  const prompt = `Create a charming children's coloring book cover page illustration.
 The cover should show the EXACT same character from the reference image as the main character, ready to go on an adventure.
 CRITICAL: The character MUST look exactly like the character in the reference image - same features, same style, same proportions.
 Style: Clean line art, bold outlines (3-4px black lines), simple backgrounds, perfect for coloring.
-Include decorative border elements. Make it inviting and exciting for children.
-Text area at top for title "${story.characterName}'s Adventure". Portrait orientation.`;
+Include decorative border elements like stars, swirls, or flowers. Make it inviting and exciting for children.
+DO NOT include any text, words, letters, or captions in the image - the illustration only. Portrait orientation.`;
 
   // Use original photo as reference if available, otherwise fall back to line art
   const referenceImage = story.originalImageData || story.characterImageData;
@@ -221,7 +221,9 @@ STYLE REQUIREMENTS:
 - Large, easy-to-color areas
 - Portrait orientation
 - Cartoon style suitable for ages 4-10
-- Character "${characterName}" MUST match the reference image exactly`;
+- Character "${characterName}" MUST match the reference image exactly
+
+CRITICAL: DO NOT include any text, words, letters, titles, captions, or writing in the image. Generate ONLY the illustration with no text whatsoever.`;
 
   return await pRetry(
     async () => {
@@ -281,7 +283,9 @@ IMPORTANT STYLE REQUIREMENTS:
 - Large, easy-to-color areas
 - Portrait orientation (1024x1536)
 - Cartoon style suitable for ages 4-10
-Character "${characterName}" should be recognizable across all pages.`;
+Character "${characterName}" should be recognizable across all pages.
+
+CRITICAL: DO NOT include any text, words, letters, titles, captions, or writing in the image. Generate ONLY the illustration with no text whatsoever.`;
 
   return await pRetry(
     async () => {
