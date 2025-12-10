@@ -355,13 +355,21 @@ export async function registerRoutes(
     }
   });
 
-  // Verify payment and update order status
+  // Verify payment and update order status (fallback if webhook delayed)
   app.post("/api/orders/:id/verify-payment", async (req, res) => {
     try {
       const order = await storage.getOrder(req.params.id);
       
       if (!order) {
         return res.status(404).json({ error: "Order not found" });
+      }
+
+      // If already processed, just return current status
+      if (order.status === 'paid' || order.status === 'generating' || order.status === 'completed') {
+        return res.json({ 
+          status: order.status,
+          message: "Order already processed" 
+        });
       }
 
       if (!order.stripeSessionId) {
@@ -371,16 +379,37 @@ export async function registerRoutes(
       const stripe = await getUncachableStripeClient();
       const session = await stripe.checkout.sessions.retrieve(order.stripeSessionId);
 
+      // Verify session belongs to this order
+      if (session.metadata?.orderId !== order.id) {
+        console.error(`Session ${session.id} metadata.orderId (${session.metadata?.orderId}) doesn't match order ${order.id}`);
+        return res.status(400).json({ error: "Session does not match order" });
+      }
+
       if (session.payment_status === 'paid') {
+        // Check if webhook already processed this (idempotency)
+        const refreshedOrder = await storage.getOrder(order.id);
+        if (refreshedOrder && (refreshedOrder.status === 'paid' || refreshedOrder.status === 'generating' || refreshedOrder.status === 'completed')) {
+          return res.json({ 
+            status: refreshedOrder.status,
+            message: "Order already processed" 
+          });
+        }
+
         await storage.updateOrder(order.id, {
           status: "paid",
           amountPaid: session.amount_total,
           stripePaymentIntentId: session.payment_intent as string,
         });
 
+        // Start book generation (same as webhook handler)
+        const { startBookGeneration } = await import('./bookGenerator');
+        startBookGeneration(order.id).catch((err: unknown) => {
+          console.error(`Failed to start book generation for order ${order.id}:`, err);
+        });
+
         res.json({ 
           status: "paid",
-          message: "Payment verified successfully" 
+          message: "Payment verified and book generation started" 
         });
       } else {
         res.json({ 
@@ -396,7 +425,38 @@ export async function registerRoutes(
     }
   });
 
-  // Serve PDF downloads
+  // Secure PDF download endpoint - validates order ownership
+  app.get("/api/downloads/:orderId", async (req, res) => {
+    try {
+      const order = await storage.getOrder(req.params.orderId);
+      
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      if (order.status !== 'completed' || !order.pdfUrl) {
+        return res.status(400).json({ error: "Book not ready yet" });
+      }
+
+      // Extract filename from pdfUrl and serve the file
+      const fileName = order.pdfUrl.replace('/downloads/', '');
+      const filePath = path.join(process.cwd(), 'uploads/books', fileName);
+      
+      res.download(filePath, fileName, (err) => {
+        if (err) {
+          console.error("Download error:", err);
+          if (!res.headersSent) {
+            res.status(404).json({ error: "File not found" });
+          }
+        }
+      });
+    } catch (error: any) {
+      console.error("Download error:", error);
+      res.status(500).json({ error: "Failed to download file" });
+    }
+  });
+
+  // Also keep static serving for backward compatibility with existing URLs
   app.use('/downloads', express.static(path.join(process.cwd(), 'uploads/books')));
 
   return httpServer;

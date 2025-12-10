@@ -2,6 +2,7 @@ import { storage } from './storage';
 import OpenAI from 'openai';
 import pRetry from 'p-retry';
 import { assemblePDF } from './pdfAssembler';
+import { sendBookReadyEmail } from './emailClient';
 
 const TOTAL_PAGES = 25;
 const COVER_PAGE = 1;
@@ -47,10 +48,23 @@ async function generateBook(orderId: string): Promise<void> {
   if (!order) {
     throw new Error(`Order ${orderId} not found`);
   }
+
+  // Idempotency check - don't regenerate if already processing or complete
+  if (order.status === 'generating' || order.status === 'completed') {
+    console.log(`[generator] Order ${orderId} already in ${order.status} state, skipping`);
+    return;
+  }
   
   const story = await storage.getStory(order.storyId);
   if (!story) {
     throw new Error(`Story ${order.storyId} not found`);
+  }
+
+  // Validate story has sections
+  if (!story.sections || story.sections.length === 0) {
+    console.error(`[generator] Story ${order.storyId} has no sections, cannot generate book`);
+    await storage.updateOrder(orderId, { status: 'failed' });
+    throw new Error(`Story ${order.storyId} has no sections`);
   }
   
   await storage.updateOrder(orderId, { status: 'generating' });
@@ -136,6 +150,25 @@ async function generateBook(orderId: string): Promise<void> {
     });
     
     console.log(`[generator] PDF ready at ${downloadUrl}`);
+    
+    if (order.email) {
+      console.log(`[generator] Sending email notification to ${order.email}`);
+      // Build full download URL for email
+      const baseUrl = process.env.REPLIT_DOMAINS?.split(',')[0] || 'localhost:5000';
+      const protocol = baseUrl.includes('localhost') ? 'http' : 'https';
+      const fullDownloadUrl = `${protocol}://${baseUrl}/api/downloads/${orderId}`;
+      
+      const emailSent = await sendBookReadyEmail(
+        order.email,
+        story.characterName,
+        fullDownloadUrl
+      );
+      if (emailSent) {
+        console.log(`[generator] Email sent successfully to ${order.email}`);
+      } else {
+        console.log(`[generator] Failed to send email to ${order.email}`);
+      }
+    }
   } catch (err) {
     console.error(`[generator] Failed to assemble PDF:`, err);
     await storage.updateOrder(orderId, { 

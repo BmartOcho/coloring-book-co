@@ -65,7 +65,7 @@ export class WebhookHandlers {
     
     console.log(`[webhook] Order ${orderId} marked as paid, starting book generation`);
     
-    startBookGeneration(orderId).catch(err => {
+    startBookGeneration(orderId).catch((err: unknown) => {
       console.error(`[webhook] Failed to start book generation for order ${orderId}:`, err);
     });
   }

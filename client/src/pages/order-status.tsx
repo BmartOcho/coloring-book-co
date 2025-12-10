@@ -161,7 +161,7 @@ export default function OrderStatusPage() {
           )}
 
           {isComplete && order.pdfUrl && (
-            <a href={order.pdfUrl} target="_blank" rel="noopener noreferrer">
+            <a href={`/api/downloads/${order.id}`} download>
               <Button 
                 className="w-full h-12 rounded-xl font-heading font-semibold bg-primary hover:bg-primary/90 text-white"
                 data-testid="button-download"
