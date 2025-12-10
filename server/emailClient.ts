@@ -3,7 +3,10 @@ import { Resend } from 'resend';
 let connectionSettings: any;
 
 async function getCredentials() {
+  console.log('[email] Fetching Resend credentials...');
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
+  console.log(`[email] Connectors hostname: ${hostname}`);
+  
   const xReplitToken = process.env.REPL_IDENTITY 
     ? 'repl ' + process.env.REPL_IDENTITY 
     : process.env.WEB_REPL_RENEWAL 
@@ -11,23 +14,45 @@ async function getCredentials() {
     : null;
 
   if (!xReplitToken) {
+    console.error('[email] X_REPLIT_TOKEN not found - neither REPL_IDENTITY nor WEB_REPL_RENEWAL set');
     throw new Error('X_REPLIT_TOKEN not found for repl/depl');
   }
+  console.log('[email] Token type:', xReplitToken.startsWith('repl ') ? 'REPL_IDENTITY' : 'WEB_REPL_RENEWAL');
 
-  connectionSettings = await fetch(
-    'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=resend',
-    {
-      headers: {
-        'Accept': 'application/json',
-        'X_REPLIT_TOKEN': xReplitToken
-      }
+  const url = 'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=resend';
+  console.log(`[email] Fetching from: ${url}`);
+  
+  const response = await fetch(url, {
+    headers: {
+      'Accept': 'application/json',
+      'X_REPLIT_TOKEN': xReplitToken
     }
-  ).then(res => res.json()).then(data => data.items?.[0]);
+  });
+  
+  console.log(`[email] Connection API response status: ${response.status}`);
+  const data = await response.json();
+  console.log(`[email] Connection API response items count: ${data.items?.length || 0}`);
+  
+  connectionSettings = data.items?.[0];
 
-  if (!connectionSettings || (!connectionSettings.settings.api_key)) {
+  if (!connectionSettings) {
+    console.error('[email] No Resend connection found in response');
     throw new Error('Resend not connected');
   }
-  return { apiKey: connectionSettings.settings.api_key, fromEmail: connectionSettings.settings.from_email };
+  
+  if (!connectionSettings.settings?.api_key) {
+    console.error('[email] Resend connection found but no API key');
+    throw new Error('Resend API key not configured');
+  }
+  
+  const fromEmail = connectionSettings.settings.from_email;
+  console.log(`[email] Credentials obtained. From email: ${fromEmail || 'NOT SET'}`);
+  
+  if (!fromEmail) {
+    console.warn('[email] WARNING: from_email is not set in Resend connection - using fallback');
+  }
+  
+  return { apiKey: connectionSettings.settings.api_key, fromEmail };
 }
 
 export async function getUncachableResendClient() {
