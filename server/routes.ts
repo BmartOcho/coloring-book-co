@@ -514,5 +514,38 @@ export async function registerRoutes(
     }
   });
 
+  // Quick test image generation endpoint
+  app.post("/api/test/single-image", async (req, res) => {
+    try {
+      const { referenceImageBase64 } = req.body;
+      
+      if (!referenceImageBase64) {
+        return res.status(400).json({ error: "referenceImageBase64 required" });
+      }
+
+      const { generateIllustrationWithReference } = await import('./bookGenerator');
+      const testPrompt = "A happy child playing in a park. Bold black line art, white background, no text.";
+      
+      console.log("[TEST] Generating single test image...");
+      const imageData = await generateIllustrationWithReference(
+        testPrompt,
+        referenceImageBase64,
+        "TestCharacter"
+      );
+      
+      console.log("[TEST] Image generated successfully");
+      res.json({ 
+        success: true,
+        imageData,
+        message: "Check the image carefully - it should have NO text at all"
+      });
+    } catch (error: any) {
+      console.error("Test image generation error:", error);
+      res.status(500).json({ 
+        error: error.message || "Failed to generate test image" 
+      });
+    }
+  });
+
   return httpServer;
 }

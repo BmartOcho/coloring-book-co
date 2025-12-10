@@ -188,42 +188,29 @@ async function generateBook(orderId: string): Promise<void> {
 }
 
 async function generateCoverPage(story: any): Promise<string> {
-  const prompt = `Create a charming children's coloring book cover page illustration.
-The cover should show the EXACT same character from the reference image as the main character, ready to go on an adventure.
-CRITICAL: The character MUST look exactly like the character in the reference image - same features, same style, same proportions.
-Style: Clean line art, bold outlines (3-4px black lines), simple backgrounds, perfect for coloring.
-Include decorative border elements like stars, swirls, or flowers. Make it inviting and exciting for children.
-DO NOT include any text, words, letters, or captions in the image - the illustration only. Portrait orientation.`;
+  const prompt = `A children's coloring book cover page with bold black line art on white background.
+Show the main character (matching the reference image exactly - same face, hair, body shape) in the center.
+Add decorative elements like stars, swirls, or flowers around the character.
+Style: Bold clean lines (3-4px black), simple shapes, high contrast, perfect for children to color.
+IMPORTANT: Illustration only - absolutely NO text, NO letters, NO words, NO titles, NO captions, NO writing of any kind.
+Return ONLY the illustration artwork with the character and decorative elements.`;
 
   // Use original photo as reference if available, otherwise fall back to line art
   const referenceImage = story.originalImageData || story.characterImageData;
   return await generateIllustrationWithReference(prompt, referenceImage, story.characterName);
 }
 
-async function generateIllustrationWithReference(
+export async function generateIllustrationWithReference(
   prompt: string, 
   referenceImageData: string,
   characterName: string
 ): Promise<string> {
-  const fullPrompt = `Create a children's coloring book page illustration.
-${prompt}
+  const fullPrompt = `${prompt}
 
-CRITICAL CHARACTER REFERENCE INSTRUCTIONS:
-- You MUST base the main character EXACTLY on the reference image provided
-- The character should have the SAME facial features, hair style, body proportions, and overall appearance as in the reference
-- Keep the character consistent with their look in the reference image throughout
-
-STYLE REQUIREMENTS:
-- Clean, bold black outlines (3-4 pixel thickness)
-- Pure white background
-- No shading or gradients - just line art
-- Simple, child-friendly details
-- Large, easy-to-color areas
-- Portrait orientation
-- Cartoon style suitable for ages 4-10
-- Character "${characterName}" MUST match the reference image exactly
-
-CRITICAL: DO NOT include any text, words, letters, titles, captions, or writing in the image. Generate ONLY the illustration with no text whatsoever.`;
+CHARACTER REFERENCE: Match the character in the reference image exactly - same facial features, hair, body proportions.
+STYLE: Children's coloring book page - bold black line art (3-4px), white background, high contrast, simple shapes.
+NO TEXT ALLOWED: Do not include ANY text, letters, words, titles, captions, labels, or writing in the image whatsoever.
+Return ONLY the illustration - no text elements of any kind.`;
 
   return await pRetry(
     async () => {
@@ -272,20 +259,11 @@ CRITICAL: DO NOT include any text, words, letters, titles, captions, or writing 
 
 // Fallback generation without reference (for cases where image edit fails)
 async function generateIllustration(prompt: string, characterName: string): Promise<string> {
-  const fullPrompt = `Create a children's coloring book page illustration in Disney-Pixar style.
-${prompt}
+  const fullPrompt = `${prompt}
 
-IMPORTANT STYLE REQUIREMENTS:
-- Clean, bold black outlines (3-4 pixel thickness)
-- Pure white background
-- No shading or gradients - just line art
-- Simple, child-friendly details
-- Large, easy-to-color areas
-- Portrait orientation (1024x1536)
-- Cartoon style suitable for ages 4-10
-Character "${characterName}" should be recognizable across all pages.
-
-CRITICAL: DO NOT include any text, words, letters, titles, captions, or writing in the image. Generate ONLY the illustration with no text whatsoever.`;
+STYLE: Children's coloring book page - bold black line art (3-4px), white background, high contrast, simple shapes.
+NO TEXT ALLOWED: Do not include ANY text, letters, words, titles, captions, labels, or writing in the image whatsoever.
+Return ONLY the illustration - no text elements of any kind.`;
 
   return await pRetry(
     async () => {
@@ -331,12 +309,6 @@ function createScenePrompt(
   pageIndex: number,
   totalPagesInSection: number
 ): string {
-  const textWords = sectionText.split(' ');
-  const wordsPerPage = Math.ceil(textWords.length / totalPagesInSection);
-  const startIdx = pageIndex * wordsPerPage;
-  const endIdx = Math.min(startIdx + wordsPerPage, textWords.length);
-  const pageContext = textWords.slice(startIdx, endIdx).join(' ');
-  
   const sceneDescriptions = [
     'the beginning of the adventure',
     'an exciting moment',
@@ -348,10 +320,9 @@ function createScenePrompt(
   
   const sceneType = sceneDescriptions[pageIndex % sceneDescriptions.length];
   
-  return `Scene: ${characterName} during ${sceneType}.
-Story context: "${pageContext.substring(0, 150)}..."
-Story type: ${storyType}
-Show ${characterName} actively engaged in this moment of their journey.`;
+  return `Coloring book illustration: ${characterName} during ${sceneType}.
+Show the character actively engaged. Style: bold black line art on white background.
+NO TEXT in the image.`;
 }
 
 function delay(ms: number): Promise<void> {
