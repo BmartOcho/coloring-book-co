@@ -10,6 +10,14 @@ A web application that transforms regular photos into cartoon-style coloring boo
 - 5 story sections with "Keep Writing" and "Redo Section" controls
 - Complete story display with download option
 
+**Phase 3 (December 2025):** Added paid coloring book generation:
+- Stripe checkout integration for $45 coloring book purchases
+- Background job system to generate 25-page illustrated books
+- PDF assembly with pdf-lib for professional-quality output
+- Email notification via Resend when books are ready
+- Order status page with real-time progress tracking
+- Secure download endpoint for completed books
+
 The application features a child-friendly, playful interface inspired by Canva's image editor with a warm, approachable color palette.
 
 ## User Preferences
@@ -59,13 +67,16 @@ Preferred communication style: Simple, everyday language.
 
 ### Data Storage
 
-**Storage Strategy**: In-memory storage using a custom `MemStorage` class implementing the `IStorage` interface.
+**Storage Strategy**: PostgreSQL database with Drizzle ORM for persistent data storage.
 
-**User Management**: Basic user storage structure exists but is not actively used for the current image conversion workflow.
+**Database Tables**:
+- `users`: Basic user management (for future use)
+- `stories`: Story content with sections, character info, and completion status
+- `stripe_products`, `stripe_prices`: Synced from Stripe for product catalog
+- `orders`: Purchase records with status tracking (pending → paid → generating → completed)
+- `book_pages`: Generated coloring book pages with image data
 
-**Session Data**: No persistent sessions required for the image conversion feature.
-
-**Database Configuration**: Drizzle ORM is configured for PostgreSQL with schema files in `shared/schema.ts`, but database persistence is not currently utilized. The application can be extended to add PostgreSQL later for storing conversion history, user accounts, or analytics.
+**File Storage**: Generated PDFs stored in `uploads/books/` directory, served via secure download endpoint.
 
 ### Authentication & Authorization
 
@@ -110,6 +121,37 @@ Preferred communication style: Simple, everyday language.
 - `POST /api/stories/:id/generate-prompt` - Generate next section's mad-lib prompt
 - `POST /api/stories/:id/submit-section` - Submit user inputs and generate story text
 - `POST /api/stories/:id/redo-section` - Remove last section and allow regeneration
+
+### Payment Processing (Stripe)
+
+**Service**: Stripe via stripe-replit-sync with managed webhooks.
+
+**Product**: Personalized Coloring Book at $45 USD (one-time purchase).
+
+**Payment Flow**:
+1. User completes story and clicks "Order Coloring Book"
+2. Email collected, order created in database
+3. Stripe Checkout session created with order metadata
+4. User redirected to Stripe for payment
+5. Webhook receives `checkout.session.completed` event
+6. Order status updated, background job starts generation
+7. 25 pages generated using OpenAI gpt-image-1
+8. PDF assembled with pdf-lib
+9. Email sent via Resend with download link
+
+**Order API Endpoints**:
+- `POST /api/orders/checkout` - Create checkout session (requires storyId, email)
+- `GET /api/orders/:id` - Get order status with progress
+- `POST /api/orders/:id/verify-payment` - Fallback payment verification
+- `GET /api/downloads/:orderId` - Secure PDF download
+
+### Email Notifications (Resend)
+
+**Service**: Resend via Replit connection integration.
+
+**Email Types**:
+- Book ready notification with download link
+- HTML template with gradient header, order details, and CTA button
 
 ### Build & Development Tools
 
