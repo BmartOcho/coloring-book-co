@@ -5,6 +5,33 @@ import path from 'path';
 
 const UPLOADS_DIR = './uploads/books';
 
+// Helper function to wrap text to fit within a given width
+function wrapText(text: string, font: any, fontSize: number, maxWidth: number): string[] {
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let currentLine = '';
+
+  for (const word of words) {
+    const testLine = currentLine ? `${currentLine} ${word}` : word;
+    const testWidth = font.widthOfTextAtSize(testLine, fontSize);
+    
+    if (testWidth <= maxWidth) {
+      currentLine = testLine;
+    } else {
+      if (currentLine) {
+        lines.push(currentLine);
+      }
+      currentLine = word;
+    }
+  }
+  
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+  
+  return lines;
+}
+
 export async function assemblePDF(orderId: string): Promise<string> {
   console.log(`[pdf] Starting PDF assembly for order ${orderId}`);
   
@@ -28,9 +55,12 @@ export async function assemblePDF(orderId: string): Promise<string> {
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const italicFont = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
   
   const pageWidth = 612;
   const pageHeight = 792;
+  const margin = 36;
+  const textAreaHeight = 100; // Space reserved for story text at bottom
 
   for (const bookPage of pages) {
     if (!bookPage.imageData) {
@@ -54,20 +84,26 @@ export async function assemblePDF(orderId: string): Promise<string> {
       const imgDims = image.scale(1);
       const aspectRatio = imgDims.width / imgDims.height;
       
-      const margin = 36;
+      // Reserve space for text at the bottom for non-cover pages
+      const hasStoryText = bookPage.pageNumber > 0 && bookPage.storyText;
+      const imageMaxHeight = hasStoryText 
+        ? pageHeight - (margin * 2) - textAreaHeight 
+        : pageHeight - (margin * 2);
       const maxWidth = pageWidth - (margin * 2);
-      const maxHeight = pageHeight - (margin * 2);
       
       let drawWidth = maxWidth;
       let drawHeight = drawWidth / aspectRatio;
       
-      if (drawHeight > maxHeight) {
-        drawHeight = maxHeight;
+      if (drawHeight > imageMaxHeight) {
+        drawHeight = imageMaxHeight;
         drawWidth = drawHeight * aspectRatio;
       }
       
       const x = (pageWidth - drawWidth) / 2;
-      const y = (pageHeight - drawHeight) / 2;
+      // Position image higher to leave room for text
+      const y = hasStoryText 
+        ? textAreaHeight + margin + (imageMaxHeight - drawHeight) / 2
+        : (pageHeight - drawHeight) / 2;
       
       page.drawImage(image, {
         x,
@@ -76,13 +112,44 @@ export async function assemblePDF(orderId: string): Promise<string> {
         height: drawHeight,
       });
       
+      // Add story text at the bottom of the page
+      if (hasStoryText && bookPage.storyText) {
+        const textMaxWidth = pageWidth - (margin * 2);
+        const fontSize = 10;
+        const lineHeight = fontSize * 1.4;
+        
+        // Wrap the story text to fit
+        const wrappedLines = wrapText(bookPage.storyText, italicFont, fontSize, textMaxWidth);
+        
+        // Limit to 6 lines max to fit in the text area
+        const displayLines = wrappedLines.slice(0, 6);
+        if (wrappedLines.length > 6) {
+          displayLines[5] = displayLines[5].substring(0, displayLines[5].length - 3) + '...';
+        }
+        
+        // Draw each line centered
+        let textY = margin + textAreaHeight - 20;
+        for (const line of displayLines) {
+          const lineWidth = italicFont.widthOfTextAtSize(line, fontSize);
+          page.drawText(line, {
+            x: (pageWidth - lineWidth) / 2,
+            y: textY,
+            size: fontSize,
+            font: italicFont,
+            color: rgb(0.3, 0.3, 0.3),
+          });
+          textY -= lineHeight;
+        }
+      }
+      
+      // Add page number
       if (bookPage.pageNumber > 0) {
         page.drawText(`Page ${bookPage.pageNumber}`, {
           x: pageWidth / 2 - 20,
-          y: 20,
-          size: 10,
+          y: 15,
+          size: 9,
           font,
-          color: rgb(0.5, 0.5, 0.5),
+          color: rgb(0.6, 0.6, 0.6),
         });
       }
       

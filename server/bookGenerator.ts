@@ -4,7 +4,9 @@ import pRetry from 'p-retry';
 import { assemblePDF } from './pdfAssembler';
 import { sendBookReadyEmail } from './emailClient';
 
-const TOTAL_PAGES = 25;
+// Set to true for faster testing iterations (5 pages instead of 25)
+const TEST_MODE = true;
+const TOTAL_PAGES = TEST_MODE ? 5 : 25;
 const COVER_PAGE = 1;
 
 const openai = new OpenAI({
@@ -111,7 +113,12 @@ async function generateBook(orderId: string): Promise<void> {
           sectionPagesCount
         );
         
-        const imageData = await generateIllustration(scenePrompt, story.characterName);
+        // Use character reference image for all illustrations
+        const imageData = await generateIllustrationWithReference(
+          scenePrompt, 
+          story.characterImageData, 
+          story.characterName
+        );
         
         await storage.createBookPage({
           orderId,
@@ -180,15 +187,82 @@ async function generateBook(orderId: string): Promise<void> {
 }
 
 async function generateCoverPage(story: any): Promise<string> {
-  const prompt = `Create a charming children's coloring book cover featuring "${story.characterName}". 
-The cover should show ${story.characterName} as the main character in a Disney-Pixar style illustration ready to go on an adventure.
+  const prompt = `Create a charming children's coloring book cover page.
+The cover should show the EXACT same character from the reference image as the main character, ready to go on an adventure.
+CRITICAL: The character MUST look exactly like the character in the reference image - same features, same style, same proportions.
 Style: Clean line art, bold outlines (3-4px black lines), simple backgrounds, perfect for coloring.
 Include decorative border elements. Make it inviting and exciting for children.
-Text area at top for title. Portrait orientation.`;
+Text area at top for title "${story.characterName}'s Adventure". Portrait orientation.`;
 
-  return await generateIllustration(prompt, story.characterName);
+  return await generateIllustrationWithReference(prompt, story.characterImageData, story.characterName);
 }
 
+async function generateIllustrationWithReference(
+  prompt: string, 
+  referenceImageData: string,
+  characterName: string
+): Promise<string> {
+  const fullPrompt = `Create a children's coloring book page illustration.
+${prompt}
+
+CRITICAL CHARACTER REFERENCE INSTRUCTIONS:
+- You MUST base the main character EXACTLY on the reference image provided
+- The character should have the SAME facial features, hair style, body proportions, and overall appearance as in the reference
+- Keep the character consistent with their look in the reference image throughout
+
+STYLE REQUIREMENTS:
+- Clean, bold black outlines (3-4 pixel thickness)
+- Pure white background
+- No shading or gradients - just line art
+- Simple, child-friendly details
+- Large, easy-to-color areas
+- Portrait orientation
+- Cartoon style suitable for ages 4-10
+- Character "${characterName}" MUST match the reference image exactly`;
+
+  return await pRetry(
+    async () => {
+      // Extract base64 data from data URL if present
+      const base64Data = referenceImageData.replace(/^data:image\/\w+;base64,/, '');
+      const imageBuffer = Buffer.from(base64Data, 'base64');
+      
+      // Use the images.edit endpoint with the character reference image
+      const response = await openai.images.edit({
+        model: 'gpt-image-1',
+        image: new File([imageBuffer], 'reference.png', { type: 'image/png' }),
+        prompt: fullPrompt,
+        n: 1,
+        size: '1024x1536',
+      });
+
+      const imageUrl = response.data?.[0]?.url || response.data?.[0]?.b64_json;
+      if (!imageUrl) {
+        throw new Error('No image data returned from OpenAI');
+      }
+
+      if (imageUrl.startsWith('http')) {
+        const imageResponse = await fetch(imageUrl);
+        const buffer = await imageResponse.arrayBuffer();
+        const base64 = Buffer.from(buffer).toString('base64');
+        return `data:image/png;base64,${base64}`;
+      }
+      
+      return `data:image/png;base64,${imageUrl}`;
+    },
+    {
+      retries: 3,
+      onFailedAttempt: (error) => {
+        console.log(
+          `[generator] Image generation attempt ${error.attemptNumber} failed. ${error.retriesLeft} retries left.`
+        );
+      },
+      minTimeout: 2000,
+      maxTimeout: 10000,
+    }
+  );
+}
+
+// Fallback generation without reference (for cases where image edit fails)
 async function generateIllustration(prompt: string, characterName: string): Promise<string> {
   const fullPrompt = `Create a children's coloring book page illustration in Disney-Pixar style.
 ${prompt}
