@@ -459,5 +459,59 @@ export async function registerRoutes(
   // Also keep static serving for backward compatibility with existing URLs
   app.use('/downloads', express.static(path.join(process.cwd(), 'uploads/books')));
 
+  // Test endpoint: Generate coloring book without payment (development only)
+  app.post("/api/orders/test-generate", async (req, res) => {
+    try {
+      const validationResult = createOrderRequestSchema.safeParse(req.body);
+      
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          error: "Invalid request data",
+          details: validationResult.error.errors 
+        });
+      }
+
+      const { storyId, email } = validationResult.data;
+
+      const story = await storage.getStory(storyId);
+      if (!story) {
+        return res.status(404).json({ error: "Story not found" });
+      }
+
+      if (!story.isComplete) {
+        return res.status(400).json({ error: "Story must be complete before generating" });
+      }
+
+      // Create order and mark as paid immediately (bypassing Stripe)
+      const order = await storage.createOrder({
+        storyId,
+        email,
+        status: "paid",
+        totalPages: 26,
+        pagesGenerated: 0,
+        amountPaid: 0, // Free test
+      });
+
+      console.log(`[TEST] Created test order ${order.id} for story ${storyId}`);
+
+      // Start book generation immediately
+      const { startBookGeneration } = await import('./bookGenerator');
+      startBookGeneration(order.id).catch((err: unknown) => {
+        console.error(`Failed to start book generation for order ${order.id}:`, err);
+      });
+
+      res.json({ 
+        orderId: order.id,
+        message: "Test order created - book generation started",
+        redirectUrl: `/order/${order.id}`,
+      });
+    } catch (error: any) {
+      console.error("Test generate error:", error);
+      res.status(500).json({ 
+        error: error.message || "Failed to create test order" 
+      });
+    }
+  });
+
   return httpServer;
 }

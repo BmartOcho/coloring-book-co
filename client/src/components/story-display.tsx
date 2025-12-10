@@ -3,10 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { BookOpen, Download, RotateCcw, ImageIcon, ShoppingCart, Loader2, Mail } from "lucide-react";
+import { BookOpen, Download, RotateCcw, ImageIcon, ShoppingCart, Loader2, Mail, FlaskConical } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Story } from "@shared/schema";
+import { useLocation } from "wouter";
 
 interface StoryDisplayProps {
   story: Story;
@@ -16,8 +17,10 @@ interface StoryDisplayProps {
 export function StoryDisplay({ story, onReset }: StoryDisplayProps) {
   const [email, setEmail] = useState("");
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [isTestGenerating, setIsTestGenerating] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   const handleCheckout = async () => {
     if (!email || !email.includes("@")) {
@@ -52,6 +55,46 @@ export function StoryDisplay({ story, onReset }: StoryDisplayProps) {
       });
     } finally {
       setIsCheckingOut(false);
+    }
+  };
+
+  const handleTestGenerate = async () => {
+    if (!email || !email.includes("@")) {
+      toast({
+        title: "Email required",
+        description: "Please enter a valid email address to receive your coloring book.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsTestGenerating(true);
+    try {
+      const response = await apiRequest("POST", "/api/orders/test-generate", {
+        storyId: story.id,
+        email,
+      });
+      
+      const data = await response.json();
+      
+      if (data.orderId) {
+        toast({
+          title: "Test generation started!",
+          description: "Redirecting to order status page...",
+        });
+        setLocation(`/order/${data.orderId}`);
+      } else {
+        throw new Error("Failed to create test order");
+      }
+    } catch (error: any) {
+      console.error("Test generate error:", error);
+      toast({
+        title: "Test generation failed",
+        description: error.message || "Unable to start test generation. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTestGenerating(false);
     }
   };
 
@@ -219,7 +262,7 @@ export function StoryDisplay({ story, onReset }: StoryDisplayProps) {
                   variant="outline"
                   onClick={() => setShowCheckout(false)}
                   className="h-11 rounded-lg font-heading"
-                  disabled={isCheckingOut}
+                  disabled={isCheckingOut || isTestGenerating}
                   data-testid="button-cancel-checkout"
                 >
                   Cancel
@@ -227,7 +270,7 @@ export function StoryDisplay({ story, onReset }: StoryDisplayProps) {
                 
                 <Button
                   onClick={handleCheckout}
-                  disabled={isCheckingOut || !email}
+                  disabled={isCheckingOut || isTestGenerating || !email}
                   className="flex-1 h-11 rounded-lg font-heading font-semibold bg-primary hover:bg-primary/90 text-white"
                   data-testid="button-proceed-checkout"
                 >
@@ -243,6 +286,31 @@ export function StoryDisplay({ story, onReset }: StoryDisplayProps) {
                     </>
                   )}
                 </Button>
+              </div>
+              
+              <div className="pt-3 border-t border-border/50">
+                <Button
+                  onClick={handleTestGenerate}
+                  disabled={isCheckingOut || isTestGenerating || !email}
+                  variant="outline"
+                  className="w-full h-11 rounded-lg font-heading border-dashed"
+                  data-testid="button-test-generate"
+                >
+                  {isTestGenerating ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Starting test...
+                    </>
+                  ) : (
+                    <>
+                      <FlaskConical className="w-5 h-5 mr-2" />
+                      Test Generate (Skip Payment)
+                    </>
+                  )}
+                </Button>
+                <p className="text-xs text-muted-foreground text-center mt-2">
+                  For testing purposes only - bypasses payment
+                </p>
               </div>
             </div>
           )}
