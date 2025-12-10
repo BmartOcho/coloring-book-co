@@ -9,7 +9,8 @@ export const stories = pgTable("stories", {
   id: varchar("id", { length: 36 }).primaryKey(),
   characterName: text("character_name").notNull(),
   storyType: varchar("story_type", { length: 20 }).notNull(),
-  characterImageData: text("character_image_data").notNull(),
+  characterImageData: text("character_image_data").notNull(), // Converted coloring book line art
+  originalImageData: text("original_image_data"), // Original photo for AI reference
   sections: jsonb("sections").notNull().default([]),
   isComplete: boolean("is_complete").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -114,7 +115,8 @@ export const storySchema = z.object({
   id: z.string(),
   characterName: z.string(),
   storyType: z.enum(storyTypes),
-  characterImageData: z.string(), // base64 of the coloring book image
+  characterImageData: z.string(), // base64 of the coloring book image (line art)
+  originalImageData: z.string().optional(), // base64 of the original photo for AI reference
   sections: z.array(storySectionSchema),
   isComplete: z.boolean(),
   createdAt: z.string(),
@@ -126,7 +128,8 @@ export type Story = z.infer<typeof storySchema>;
 export const createStoryRequestSchema = z.object({
   characterName: z.string().min(1, "Character name is required"),
   storyType: z.enum(storyTypes),
-  characterImageData: z.string(),
+  characterImageData: z.string(), // Converted coloring book line art
+  originalImageData: z.string().optional(), // Original photo for AI reference
 });
 
 export type CreateStoryRequest = z.infer<typeof createStoryRequestSchema>;

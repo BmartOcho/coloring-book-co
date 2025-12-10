@@ -45,6 +45,7 @@ function dbStoryToStory(dbStory: DbStory): Story {
     characterName: dbStory.characterName,
     storyType: dbStory.storyType as Story["storyType"],
     characterImageData: dbStory.characterImageData,
+    originalImageData: dbStory.originalImageData || undefined, // Original photo for AI reference
     sections: dbStory.sections as StorySection[],
     isComplete: dbStory.isComplete,
     createdAt: dbStory.createdAt.toISOString(),
@@ -64,6 +65,7 @@ export class DatabaseStorage implements IStorage {
       characterName: storyData.characterName,
       storyType: storyData.storyType,
       characterImageData: storyData.characterImageData,
+      originalImageData: storyData.originalImageData, // Original photo for AI reference
       sections: storyData.sections,
       isComplete: storyData.isComplete,
     }).returning();

@@ -17,6 +17,7 @@ export default function Home() {
   const [phase, setPhase] = useState<AppPhase>("upload");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [originalPreview, setOriginalPreview] = useState<string>("");
+  const [originalImageData, setOriginalImageData] = useState<string>(""); // Original photo for AI reference
   const [coloringBookImage, setColoringBookImage] = useState<string>("");
   const [isDragging, setIsDragging] = useState(false);
   const [currentStory, setCurrentStory] = useState<Story | null>(null);
@@ -41,6 +42,9 @@ export default function Home() {
         };
         reader.readAsDataURL(file);
       });
+
+      // Store the original image data for later AI reference
+      setOriginalImageData(`data:${file.type};base64,${base64}`);
 
       const response = await apiRequest("POST", "/api/convert", {
         imageData: base64,
@@ -74,6 +78,7 @@ export default function Home() {
         characterName,
         storyType,
         characterImageData: coloringBookImage,
+        originalImageData: originalImageData, // Include original photo for AI reference
       });
       return response.json() as Promise<Story>;
     },

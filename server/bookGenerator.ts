@@ -1,5 +1,5 @@
 import { storage } from './storage';
-import OpenAI from 'openai';
+import OpenAI, { toFile } from 'openai';
 import pRetry from 'p-retry';
 import { assemblePDF } from './pdfAssembler';
 import { sendBookReadyEmail } from './emailClient';
@@ -113,10 +113,11 @@ async function generateBook(orderId: string): Promise<void> {
           sectionPagesCount
         );
         
-        // Use character reference image for all illustrations
+        // Use original photo as reference if available, otherwise fall back to line art
+        const referenceImage = story.originalImageData || story.characterImageData;
         const imageData = await generateIllustrationWithReference(
           scenePrompt, 
-          story.characterImageData, 
+          referenceImage, 
           story.characterName
         );
         
@@ -194,7 +195,9 @@ Style: Clean line art, bold outlines (3-4px black lines), simple backgrounds, pe
 Include decorative border elements. Make it inviting and exciting for children.
 Text area at top for title "${story.characterName}'s Adventure". Portrait orientation.`;
 
-  return await generateIllustrationWithReference(prompt, story.characterImageData, story.characterName);
+  // Use original photo as reference if available, otherwise fall back to line art
+  const referenceImage = story.originalImageData || story.characterImageData;
+  return await generateIllustrationWithReference(prompt, referenceImage, story.characterName);
 }
 
 async function generateIllustrationWithReference(
@@ -226,10 +229,13 @@ STYLE REQUIREMENTS:
       const base64Data = referenceImageData.replace(/^data:image\/\w+;base64,/, '');
       const imageBuffer = Buffer.from(base64Data, 'base64');
       
+      // Use toFile helper from OpenAI SDK (works in Node.js)
+      const imageFile = await toFile(imageBuffer, 'reference.png', { type: 'image/png' });
+      
       // Use the images.edit endpoint with the character reference image
       const response = await openai.images.edit({
         model: 'gpt-image-1',
-        image: new File([imageBuffer], 'reference.png', { type: 'image/png' }),
+        image: imageFile,
         prompt: fullPrompt,
         n: 1,
         size: '1024x1536',

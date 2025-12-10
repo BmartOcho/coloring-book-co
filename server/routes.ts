@@ -72,12 +72,13 @@ export async function registerRoutes(
         });
       }
 
-      const { characterName, storyType, characterImageData } = validationResult.data;
+      const { characterName, storyType, characterImageData, originalImageData } = validationResult.data;
 
       const story = await storage.createStory({
         characterName,
         storyType,
         characterImageData,
+        originalImageData, // Include original photo for AI reference
         sections: [],
         isComplete: false,
       });

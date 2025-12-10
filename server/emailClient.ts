@@ -43,8 +43,13 @@ export async function sendBookReadyEmail(
   characterName: string,
   downloadUrl: string
 ): Promise<boolean> {
+  console.log(`[email] Attempting to send book ready email to: ${toEmail}`);
+  console.log(`[email] Download URL: ${downloadUrl}`);
+  
   try {
+    console.log('[email] Getting Resend client...');
     const { client, fromEmail } = await getUncachableResendClient();
+    console.log(`[email] Using from email: ${fromEmail}`);
     
     const result = await client.emails.send({
       from: fromEmail || 'Coloring Book Creator <noreply@resend.dev>',
@@ -112,10 +117,18 @@ export async function sendBookReadyEmail(
       `,
     });
 
-    console.log('Email sent successfully:', result);
+    console.log('[email] Email sent successfully:', JSON.stringify(result, null, 2));
     return true;
   } catch (error: any) {
-    console.error('Failed to send email:', error);
+    console.error('[email] Failed to send email:', error.message || error);
+    if (error.statusCode) {
+      console.error('[email] Status code:', error.statusCode);
+    }
+    if (error.name) {
+      console.error('[email] Error name:', error.name);
+    }
+    // Log full error for debugging
+    console.error('[email] Full error:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
     return false;
   }
 }
