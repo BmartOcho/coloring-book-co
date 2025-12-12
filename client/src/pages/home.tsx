@@ -6,9 +6,12 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import type { ImageConversionResponse } from "@shared/schema";
 
 type AppPhase = "upload" | "preview" | "converted";
+type DetailLevel = "1" | "2" | "3";
 
 export default function Home() {
   const [phase, setPhase] = useState<AppPhase>("upload");
@@ -16,6 +19,7 @@ export default function Home() {
   const [originalPreview, setOriginalPreview] = useState<string>("");
   const [coloringBookImage, setColoringBookImage] = useState<string>("");
   const [isDragging, setIsDragging] = useState(false);
+  const [detailLevel, setDetailLevel] = useState<DetailLevel>("1");
   const { toast } = useToast();
 
   const convertMutation = useMutation({
@@ -32,6 +36,7 @@ export default function Home() {
       const response = await apiRequest("POST", "/api/convert", {
         imageData: base64,
         fileName: file.name,
+        detailLevel: detailLevel,
       });
 
       const data: ImageConversionResponse = await response.json();
@@ -273,13 +278,46 @@ export default function Home() {
             </div>
 
             {phase === "preview" && (
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <Button onClick={handleConvert} disabled={convertMutation.isPending} className="font-heading font-medium text-base px-8 min-h-12 rounded-xl shadow-md w-full sm:w-auto" data-testid="button-convert">
-                  {convertMutation.isPending ? (<><Loader2 className="w-5 h-5 mr-2 animate-spin" />Converting...</>) : ("Convert to Coloring Book")}
-                </Button>
-                <Button onClick={handleNewImage} variant="outline" className="font-heading font-medium text-base px-8 min-h-12 rounded-xl w-full sm:w-auto" data-testid="button-reset">
-                  Choose Different Photo
-                </Button>
+              <div className="space-y-6">
+                <Card className="p-6 rounded-xl shadow-md bg-muted/30 dark:bg-muted/20">
+                  <div className="space-y-4">
+                    <Label className="font-heading font-semibold text-lg text-[#2C3E50] dark:text-foreground" data-testid="label-detail-level">
+                      Coloring Complexity Level
+                    </Label>
+                    <RadioGroup value={detailLevel} onValueChange={(value) => setDetailLevel(value as DetailLevel)}>
+                      <div className="flex items-center space-x-3" data-testid="radio-level-1">
+                        <RadioGroupItem value="1" id="level-1" />
+                        <Label htmlFor="level-1" className="font-sans text-base cursor-pointer flex-1">
+                          <span className="font-medium text-[#2C3E50] dark:text-foreground">Level 1: Simple</span>
+                          <p className="text-sm text-[#2C3E50]/60 dark:text-muted-foreground">Bold lines, easy for young children</p>
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-3" data-testid="radio-level-2">
+                        <RadioGroupItem value="2" id="level-2" />
+                        <Label htmlFor="level-2" className="font-sans text-base cursor-pointer flex-1">
+                          <span className="font-medium text-[#2C3E50] dark:text-foreground">Level 2: Medium</span>
+                          <p className="text-sm text-[#2C3E50]/60 dark:text-muted-foreground">More detail and thinner lines for older children</p>
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-3" data-testid="radio-level-3">
+                        <RadioGroupItem value="3" id="level-3" />
+                        <Label htmlFor="level-3" className="font-sans text-base cursor-pointer flex-1">
+                          <span className="font-medium text-[#2C3E50] dark:text-foreground">Level 3: Complex</span>
+                          <p className="text-sm text-[#2C3E50]/60 dark:text-muted-foreground">Intricate details and thin lines for adults</p>
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                </Card>
+
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                  <Button onClick={handleConvert} disabled={convertMutation.isPending} className="font-heading font-medium text-base px-8 min-h-12 rounded-xl shadow-md w-full sm:w-auto" data-testid="button-convert">
+                    {convertMutation.isPending ? (<><Loader2 className="w-5 h-5 mr-2 animate-spin" />Converting...</>) : ("Convert to Coloring Book")}
+                  </Button>
+                  <Button onClick={handleNewImage} variant="outline" className="font-heading font-medium text-base px-8 min-h-12 rounded-xl w-full sm:w-auto" data-testid="button-reset">
+                    Choose Different Photo
+                  </Button>
+                </div>
               </div>
             )}
 

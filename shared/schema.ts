@@ -4,6 +4,7 @@ import { z } from "zod";
 export const imageConversionRequestSchema = z.object({
   imageData: z.string(), // base64 encoded image
   fileName: z.string(),
+  detailLevel: z.enum(["1", "2", "3"]).default("1"), // 1=simple, 2=medium, 3=complex
 });
 
 export type ImageConversionRequest = z.infer<typeof imageConversionRequestSchema>;

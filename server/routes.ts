@@ -20,7 +20,7 @@ export async function registerRoutes(
         });
       }
 
-      const { imageData, fileName } = validationResult.data;
+      const { imageData, fileName, detailLevel } = validationResult.data;
       const imageBuffer = Buffer.from(imageData, "base64");
 
       if (imageBuffer.length > 50 * 1024 * 1024) {
@@ -29,7 +29,7 @@ export async function registerRoutes(
         });
       }
 
-      const coloringBookImage = await convertToColoringBook(imageBuffer, fileName);
+      const coloringBookImage = await convertToColoringBook(imageBuffer, fileName, detailLevel);
 
       res.json({
         originalImage: "data:image/png;base64," + imageData,

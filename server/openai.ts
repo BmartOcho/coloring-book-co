@@ -20,6 +20,7 @@ function isRateLimitError(error: any): boolean {
 export async function convertToColoringBook(
   imageBuffer: Buffer,
   fileName: string,
+  detailLevel: "1" | "2" | "3" = "1",
 ): Promise<string> {
   return await pRetry(
     async () => {
@@ -36,8 +37,21 @@ export async function convertToColoringBook(
           type: mimeType,
         });
 
-        const prompt =
-          "Convert this photo into a clean, Disney-Pixar-style black and white line art drawing suitable for a children's coloring book. The output should have: Bold, clear outlines that are easy to color within. Disney-Pixar-like stylization of all features. High contrast black lines on white background. Accurate details that maintain recognizability. Kid-friendly aesthetic with smooth, rounded shapes. No shading, gradients, or color fills - only clean line art. Keep composition true to the original.";
+        let prompt = "";
+        
+        if (detailLevel === "1") {
+          prompt =
+            "Convert this photo into a clean, Disney-Pixar-style black and white line art drawing suitable for young children's coloring book. The output should have: BOLD, THICK, CLEAR outlines that are easy to color within. Simple, smooth shapes and forms. Disney-Pixar-like stylization with minimal details. High contrast black lines on white background. Kid-friendly aesthetic with rounded shapes. No shading, gradients, or color fills - only clean, simple line art. Keep composition true to the original. Focus on simplicity and ease of coloring.";
+        } else if (detailLevel === "2") {
+          prompt =
+            "Convert this photo into a moderately detailed black and white line art drawing suitable for older children's coloring book. The output should have: Medium thickness black lines with added complexity and details. More refined features and textures than simple style. Increased decorative elements and pattern details. High contrast black lines on white background. Artistic but still accessible for intermediate colorers. Thin to medium line weights throughout. No shading, gradients, or color fills - only clean line art. Keep composition true to the original.";
+        } else {
+          // detailLevel === "3"
+          prompt =
+            "Convert this photo into a highly detailed, intricate black and white line art drawing suitable for adult coloring books. The output should have: VERY THIN, DELICATE lines with exceptional detail and complexity. Intricate textures, patterns, and fine details throughout. Complex shading effects created through line work (cross-hatching, stippling) where appropriate. High contrast black lines on white background. Sophisticated artistic style with intricate embellishments. Most lines should be thin and delicate. No solid shading or color fills - only expert-level line art and patterns. Maintain all details from the original. Create an intricate, detailed composition.";
+        }
+
+        prompt += " No shading, gradients, or color fills - only clean line art. Keep composition true to the original.";
 
         const response = await client.images.edit({
           model: "gpt-image-1",
