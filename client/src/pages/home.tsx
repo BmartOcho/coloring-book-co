@@ -337,7 +337,7 @@ export default function Home() {
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                  <Button onClick={handleDownload} className="font-heading font-medium text-base px-8 min-h-12 rounded-xl shadow-md bg-accent hover:bg-accent/90 text-[#2C3E50] w-full sm:w-auto" data-testid="button-download">
+                  <Button onClick={handleDownload} className="font-heading font-medium text-base px-8 min-h-12 rounded-xl shadow-md w-full sm:w-auto" data-testid="button-download">
                     <Download className="w-5 h-5 mr-2" />
                     Download Coloring Page
                   </Button>
