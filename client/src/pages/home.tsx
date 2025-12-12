@@ -11,7 +11,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import type { ImageConversionResponse } from "@shared/schema";
 
 type AppPhase = "upload" | "preview" | "converted";
-type DetailLevel = "1" | "2" | "3";
+type DetailLevel = "1" | "2";
 
 export default function Home() {
   const [phase, setPhase] = useState<AppPhase>("upload");
@@ -303,22 +303,15 @@ export default function Home() {
                       <div className="flex items-center space-x-3" data-testid="radio-level-1">
                         <RadioGroupItem value="1" id="level-1" />
                         <Label htmlFor="level-1" className="font-sans text-base cursor-pointer flex-1">
-                          <span className="font-medium text-[#2C3E50] dark:text-foreground">Level 1: Simple</span>
+                          <span className="font-medium text-[#2C3E50] dark:text-foreground">Simple</span>
                           <p className="text-sm text-[#2C3E50]/60 dark:text-muted-foreground">Bold lines, easy for young children</p>
                         </Label>
                       </div>
                       <div className="flex items-center space-x-3" data-testid="radio-level-2">
                         <RadioGroupItem value="2" id="level-2" />
                         <Label htmlFor="level-2" className="font-sans text-base cursor-pointer flex-1">
-                          <span className="font-medium text-[#2C3E50] dark:text-foreground">Level 2: Medium</span>
-                          <p className="text-sm text-[#2C3E50]/60 dark:text-muted-foreground">More detail and thinner lines for older children</p>
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-3" data-testid="radio-level-3">
-                        <RadioGroupItem value="3" id="level-3" />
-                        <Label htmlFor="level-3" className="font-sans text-base cursor-pointer flex-1">
-                          <span className="font-medium text-[#2C3E50] dark:text-foreground">Level 3: Complex</span>
-                          <p className="text-sm text-[#2C3E50]/60 dark:text-muted-foreground">Intricate details and thin lines for adults</p>
+                          <span className="font-medium text-[#2C3E50] dark:text-foreground">Complex</span>
+                          <p className="text-sm text-[#2C3E50]/60 dark:text-muted-foreground">More detail and thinner lines</p>
                         </Label>
                       </div>
                     </RadioGroup>
