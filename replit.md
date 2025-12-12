@@ -2,22 +2,9 @@
 
 ## Overview
 
-A web application that transforms regular photos into cartoon-style coloring book pages using AI. Users can upload images, convert them to line art suitable for coloring, and download the results. 
+A web application that transforms regular photos into cartoon-style coloring book pages using AI. Users can upload images and download converted versions suitable for coloring.
 
-**Phase 2 (December 2025):** Added Story Builder MVP - users can now create personalized coloring story books after converting their image. Features include:
-- Interactive mad-libs style story creation with AI-generated prompts
-- 4 story types: Adventure, Hero's Tale, Explorer, Career/Dream Story
-- 5 story sections with "Keep Writing" and "Redo Section" controls
-- Complete story display with download option
-
-**Phase 3 (December 2025):** Added free coloring book generation:
-- Background job system to generate 25-page illustrated books
-- PDF assembly with pdf-lib for professional-quality output
-- Email notification via Resend when books are ready
-- Order status page with real-time progress tracking
-- Secure download endpoint for completed books
-
-The application features a child-friendly, playful interface inspired by Canva's image editor with a warm, approachable color palette.
+The application features a child-friendly, playful interface with a warm, approachable color palette.
 
 ## User Preferences
 
@@ -42,15 +29,13 @@ Preferred communication style: Simple, everyday language.
 
 **State Management**: TanStack Query (React Query) for server state management with custom query client configuration. Toast notifications for user feedback via Shadcn toast component.
 
-**Form Handling**: React Hook Form with Zod resolvers for validation.
-
 **Theme System**: Custom light/dark theme provider with localStorage persistence, though the application is optimized for light mode with the child-friendly color palette.
 
 ### Backend Architecture
 
 **Server Framework**: Express.js with TypeScript running on Node.js.
 
-**API Design**: RESTful endpoints with a single primary route (`POST /api/convert`) for image conversion.
+**API Design**: RESTful endpoint for image conversion.
 
 **Request Processing**:
 - Accepts base64-encoded images in JSON payloads
@@ -64,27 +49,9 @@ Preferred communication style: Simple, everyday language.
 
 **Development Mode**: Vite middleware integration for hot module replacement and development server features.
 
-### Data Storage
+### External Dependencies
 
-**Storage Strategy**: PostgreSQL database with Drizzle ORM for persistent data storage.
-
-**Database Tables**:
-- `users`: Basic user management (for future use)
-- `stories`: Story content with sections, character info, and completion status
-- `orders`: Order records with status tracking (pending → paid → generating → completed)
-- `book_pages`: Generated coloring book pages with image data
-
-**File Storage**: Generated PDFs stored in `uploads/books/` directory, served via secure download endpoint.
-
-### Authentication & Authorization
-
-**Current State**: No authentication or authorization implemented. The application is designed as an open, public tool.
-
-**Future Extensibility**: Infrastructure exists for user management (storage layer, user schema) to support authentication if needed.
-
-## External Dependencies
-
-### AI Image Processing
+#### AI Image Processing
 
 **Service**: OpenAI's image editing API via Replit's AI Integrations service.
 
@@ -102,52 +69,11 @@ Preferred communication style: Simple, everyday language.
 
 **Error Handling**: Implements retry logic with exponential backoff for rate limit errors (429 status codes) and quota violations.
 
-### AI Story Generation
-
-**Service**: OpenAI Chat Completions via Replit's AI Integrations service.
-
-**Model**: gpt-4.1-mini for story text generation.
-
-**Story Generation Flow**:
-1. `generateSectionPrompt()` - Creates mad-lib style prompts with 2-3 fill-in-the-blank slots
-2. `generateSectionText()` - Generates 100-150 word story sections based on user inputs
-3. Uses JSON response format for structured prompt data
-
-**Story API Endpoints**:
-- `POST /api/stories` - Create new story with character name, type, and image
-- `GET /api/stories/:id` - Get story by ID
-- `POST /api/stories/:id/generate-prompt` - Generate next section's mad-lib prompt
-- `POST /api/stories/:id/submit-section` - Submit user inputs and generate story text
-- `POST /api/stories/:id/redo-section` - Remove last section and allow regeneration
-
-### Book Generation
-
-**Generation Flow**:
-1. User completes story and clicks "Generate Coloring Book"
-2. Email collected, order created in database
-3. Background job starts generation immediately
-4. 25 pages generated using OpenAI gpt-image-1
-5. PDF assembled with pdf-lib
-6. Email sent via Resend with download link
-
-**Order API Endpoints**:
-- `POST /api/orders/generate` - Create order and start generation (requires storyId, email)
-- `GET /api/orders/:id` - Get order status with progress
-- `GET /api/downloads/:orderId` - Secure PDF download
-
-### Email Notifications (Resend)
-
-**Service**: Resend via Replit connection integration.
-
-**Email Types**:
-- Book ready notification with download link
-- HTML template with gradient header, order details, and CTA button
-
 ### Build & Development Tools
 
 **Build Pipeline**: Custom esbuild configuration bundling server code with selective dependency bundling to optimize cold start times.
 
-**Dependency Bundling Strategy**: Allowlist approach bundles specific server dependencies (OpenAI, Express, Drizzle, etc.) while externalizing others to reduce syscalls.
+**Dependency Bundling Strategy**: Allowlist approach bundles specific server dependencies (OpenAI, Express, etc.) while externalizing others to reduce syscalls.
 
 **Development Plugins**:
 - Replit Cartographer for code navigation
@@ -162,7 +88,6 @@ Preferred communication style: Simple, everyday language.
 - clsx and tailwind-merge (via cn utility) for conditional styling
 - class-variance-authority for component variant management
 - date-fns for date manipulation
-- nanoid for unique ID generation
 
 **Form & Validation**:
 - Zod for schema validation and type safety

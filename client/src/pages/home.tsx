@@ -1,36 +1,22 @@
-import { useState, useRef, useEffect } from "react";
-import { Upload, Download, Loader2, CheckCircle, ImageIcon, BookOpen } from "lucide-react";
+import { useState } from "react";
+import { Upload, Download, Loader2, CheckCircle, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { StoryForm } from "@/components/story-form";
-import { Storyboard } from "@/components/storyboard";
-import { StoryDisplay } from "@/components/story-display";
-import type { ImageConversionResponse, Story, StoryType } from "@shared/schema";
+import type { ImageConversionResponse } from "@shared/schema";
 
-type AppPhase = "upload" | "preview" | "converted" | "story-form" | "storyboard" | "complete";
+type AppPhase = "upload" | "preview" | "converted";
 
 export default function Home() {
   const [phase, setPhase] = useState<AppPhase>("upload");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [originalPreview, setOriginalPreview] = useState<string>("");
-  const [originalImageData, setOriginalImageData] = useState<string>(""); // Original photo for AI reference
   const [coloringBookImage, setColoringBookImage] = useState<string>("");
   const [isDragging, setIsDragging] = useState(false);
-  const [currentStory, setCurrentStory] = useState<Story | null>(null);
   const { toast } = useToast();
-  
-  const storyFormRef = useRef<HTMLDivElement>(null);
-  const storyboardRef = useRef<HTMLDivElement>(null);
-
-  const scrollToRef = (ref: React.RefObject<HTMLDivElement>) => {
-    setTimeout(() => {
-      ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 100);
-  };
 
   const convertMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -42,9 +28,6 @@ export default function Home() {
         };
         reader.readAsDataURL(file);
       });
-
-      // Store the original image data for later AI reference
-      setOriginalImageData(`data:${file.type};base64,${base64}`);
 
       const response = await apiRequest("POST", "/api/convert", {
         imageData: base64,
@@ -67,30 +50,6 @@ export default function Home() {
       toast({
         title: "Conversion failed",
         description: error.message || "Please try again with a different image.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const createStoryMutation = useMutation({
-    mutationFn: async ({ characterName, storyType }: { characterName: string; storyType: StoryType }) => {
-      const response = await apiRequest("POST", "/api/stories", {
-        characterName,
-        storyType,
-        characterImageData: coloringBookImage,
-        originalImageData: originalImageData, // Include original photo for AI reference
-      });
-      return response.json() as Promise<Story>;
-    },
-    onSuccess: (data) => {
-      setCurrentStory(data);
-      setPhase("storyboard");
-      scrollToRef(storyboardRef);
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Failed to start story",
-        description: error.message,
         variant: "destructive",
       });
     },
@@ -197,31 +156,6 @@ export default function Home() {
     });
   };
 
-  const handleCreateStoryBook = () => {
-    setPhase("story-form");
-    scrollToRef(storyFormRef);
-  };
-
-  const handleStartStory = (characterName: string, storyType: StoryType) => {
-    createStoryMutation.mutate({ characterName, storyType });
-  };
-
-  const handleStoryUpdate = (updatedStory: Story) => {
-    setCurrentStory(updatedStory);
-  };
-
-  const handleStoryComplete = () => {
-    setPhase("complete");
-  };
-
-  const handleReset = () => {
-    setSelectedFile(null);
-    setOriginalPreview("");
-    setColoringBookImage("");
-    setCurrentStory(null);
-    setPhase("upload");
-  };
-
   const handleNewImage = () => {
     setSelectedFile(null);
     setOriginalPreview("");
@@ -237,16 +171,10 @@ export default function Home() {
         </div>
 
         <div className="text-center mb-12">
-          <h1
-            className="font-heading font-semibold text-4xl sm:text-5xl text-[#2C3E50] dark:text-foreground mb-4"
-            data-testid="heading-main"
-          >
+          <h1 className="font-heading font-semibold text-4xl sm:text-5xl text-[#2C3E50] dark:text-foreground mb-4" data-testid="heading-main">
             Photo to Coloring Book
           </h1>
-          <p
-            className="font-sans text-lg text-[#2C3E50]/70 dark:text-muted-foreground max-w-2xl mx-auto"
-            data-testid="text-subtitle"
-          >
+          <p className="font-sans text-lg text-[#2C3E50]/70 dark:text-muted-foreground max-w-2xl mx-auto" data-testid="text-subtitle">
             Transform your photos into beautiful cartoon-style coloring pages with AI
           </p>
         </div>
@@ -260,10 +188,9 @@ export default function Home() {
               className={`
                 relative rounded-xl border-2 border-dashed transition-all duration-200
                 min-h-[400px] flex flex-col items-center justify-center p-8 sm:p-12
-                ${
-                  isDragging
-                    ? "border-primary bg-primary/5 dark:bg-primary/10"
-                    : "border-primary/50 hover:border-primary hover:bg-primary/5 dark:hover:bg-primary/10"
+                ${isDragging
+                  ? "border-primary bg-primary/5 dark:bg-primary/10"
+                  : "border-primary/50 hover:border-primary hover:bg-primary/5 dark:hover:bg-primary/10"
                 }
               `}
               data-testid="upload-zone"
@@ -283,73 +210,37 @@ export default function Home() {
                 </div>
 
                 <div className="text-center space-y-2">
-                  <p
-                    className="font-heading font-medium text-xl sm:text-2xl text-[#2C3E50] dark:text-foreground"
-                    data-testid="text-upload-primary"
-                  >
+                  <p className="font-heading font-medium text-xl sm:text-2xl text-[#2C3E50] dark:text-foreground" data-testid="text-upload-primary">
                     Drag & drop your photo here
                   </p>
-                  <p
-                    className="font-sans text-base text-[#2C3E50]/60 dark:text-muted-foreground"
-                    data-testid="text-upload-secondary"
-                  >
+                  <p className="font-sans text-base text-[#2C3E50]/60 dark:text-muted-foreground" data-testid="text-upload-secondary">
                     or click to browse
                   </p>
                 </div>
 
-                <div
-                  className="flex flex-wrap items-center justify-center gap-2 text-sm text-[#2C3E50]/50 dark:text-muted-foreground"
-                  data-testid="text-file-formats"
-                >
-                  <span
-                    className="px-3 py-1 rounded-full bg-background dark:bg-card border border-border"
-                    data-testid="badge-png"
-                  >
-                    PNG
-                  </span>
-                  <span
-                    className="px-3 py-1 rounded-full bg-background dark:bg-card border border-border"
-                    data-testid="badge-jpg"
-                  >
-                    JPG
-                  </span>
-                  <span
-                    className="px-3 py-1 rounded-full bg-background dark:bg-card border border-border"
-                    data-testid="badge-webp"
-                  >
-                    WEBP
-                  </span>
-                  <span
-                    className="px-3 py-1 rounded-full bg-background dark:bg-card border border-border"
-                    data-testid="badge-size"
-                  >
-                    Up to 50MB
-                  </span>
+                <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-[#2C3E50]/50 dark:text-muted-foreground" data-testid="text-file-formats">
+                  <span className="px-3 py-1 rounded-full bg-background dark:bg-card border border-border" data-testid="badge-png">PNG</span>
+                  <span className="px-3 py-1 rounded-full bg-background dark:bg-card border border-border" data-testid="badge-jpg">JPG</span>
+                  <span className="px-3 py-1 rounded-full bg-background dark:bg-card border border-border" data-testid="badge-webp">WEBP</span>
+                  <span className="px-3 py-1 rounded-full bg-background dark:bg-card border border-border" data-testid="badge-size">Up to 50MB</span>
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {(phase === "preview" || phase === "converted" || phase === "story-form" || phase === "storyboard" || phase === "complete") && (
+        {(phase === "preview" || phase === "converted") && (
           <div className="space-y-8">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
               <Card className="p-6 rounded-xl shadow-lg" data-testid="card-original">
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">
                     <ImageIcon className="w-5 h-5 text-[#2C3E50]/60 dark:text-muted-foreground" />
-                    <h2 className="font-heading font-semibold text-xl text-[#2C3E50] dark:text-foreground">
-                      Original Photo
-                    </h2>
+                    <h2 className="font-heading font-semibold text-xl text-[#2C3E50] dark:text-foreground">Original Photo</h2>
                   </div>
                   <div className="relative aspect-square rounded-xl overflow-hidden bg-muted">
                     {originalPreview && (
-                      <img
-                        src={originalPreview}
-                        alt="Original uploaded photo"
-                        className="w-full h-full object-contain"
-                        data-testid="img-original"
-                      />
+                      <img src={originalPreview} alt="Original uploaded photo" className="w-full h-full object-contain" data-testid="img-original" />
                     )}
                   </div>
                 </div>
@@ -359,29 +250,17 @@ export default function Home() {
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">
                     <ImageIcon className="w-5 h-5 text-[#2C3E50]/60 dark:text-muted-foreground" />
-                    <h2 className="font-heading font-semibold text-xl text-[#2C3E50] dark:text-foreground">
-                      Coloring Book Version
-                    </h2>
+                    <h2 className="font-heading font-semibold text-xl text-[#2C3E50] dark:text-foreground">Coloring Book Version</h2>
                   </div>
                   <div className="relative aspect-square rounded-xl overflow-hidden bg-muted">
                     {convertMutation.isPending && (
-                      <div
-                        className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-background/95 dark:bg-card/95"
-                        data-testid="loading-state"
-                      >
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-background/95 dark:bg-card/95" data-testid="loading-state">
                         <Loader2 className="w-12 h-12 text-accent dark:text-accent animate-spin" />
-                        <p className="font-sans text-[#2C3E50] dark:text-foreground font-medium">
-                          Creating your coloring book...
-                        </p>
+                        <p className="font-sans text-[#2C3E50] dark:text-foreground font-medium">Creating your coloring book...</p>
                       </div>
                     )}
                     {coloringBookImage && !convertMutation.isPending && (
-                      <img
-                        src={coloringBookImage}
-                        alt="Converted coloring book image"
-                        className="w-full h-full object-contain"
-                        data-testid="img-converted"
-                      />
+                      <img src={coloringBookImage} alt="Converted coloring book image" className="w-full h-full object-contain" data-testid="img-converted" />
                     )}
                     {!coloringBookImage && !convertMutation.isPending && (
                       <div className="absolute inset-0 flex items-center justify-center text-[#2C3E50]/40 dark:text-muted-foreground">
@@ -395,27 +274,10 @@ export default function Home() {
 
             {phase === "preview" && (
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <Button
-                  onClick={handleConvert}
-                  disabled={convertMutation.isPending}
-                  className="font-heading font-medium text-base px-8 min-h-12 rounded-xl shadow-md w-full sm:w-auto"
-                  data-testid="button-convert"
-                >
-                  {convertMutation.isPending ? (
-                    <>
-                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      Converting...
-                    </>
-                  ) : (
-                    "Convert to Coloring Book"
-                  )}
+                <Button onClick={handleConvert} disabled={convertMutation.isPending} className="font-heading font-medium text-base px-8 min-h-12 rounded-xl shadow-md w-full sm:w-auto" data-testid="button-convert">
+                  {convertMutation.isPending ? (<><Loader2 className="w-5 h-5 mr-2 animate-spin" />Converting...</>) : ("Convert to Coloring Book")}
                 </Button>
-                <Button
-                  onClick={handleNewImage}
-                  variant="outline"
-                  className="font-heading font-medium text-base px-8 min-h-12 rounded-xl w-full sm:w-auto"
-                  data-testid="button-reset"
-                >
+                <Button onClick={handleNewImage} variant="outline" className="font-heading font-medium text-base px-8 min-h-12 rounded-xl w-full sm:w-auto" data-testid="button-reset">
                   Choose Different Photo
                 </Button>
               </div>
@@ -429,61 +291,15 @@ export default function Home() {
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                  <Button
-                    onClick={handleDownload}
-                    className="font-heading font-medium text-base px-8 min-h-12 rounded-xl shadow-md bg-accent hover:bg-accent/90 text-[#2C3E50] w-full sm:w-auto"
-                    data-testid="button-download"
-                  >
+                  <Button onClick={handleDownload} className="font-heading font-medium text-base px-8 min-h-12 rounded-xl shadow-md bg-accent hover:bg-accent/90 text-[#2C3E50] w-full sm:w-auto" data-testid="button-download">
                     <Download className="w-5 h-5 mr-2" />
                     Download Coloring Page
                   </Button>
-                  <Button
-                    onClick={handleNewImage}
-                    variant="outline"
-                    className="font-heading font-medium text-base px-8 min-h-12 rounded-xl w-full sm:w-auto"
-                    data-testid="button-new"
-                  >
+                  <Button onClick={handleNewImage} variant="outline" className="font-heading font-medium text-base px-8 min-h-12 rounded-xl w-full sm:w-auto" data-testid="button-new">
                     Create Another
                   </Button>
                 </div>
-
-                <div className="flex justify-center pt-4">
-                  <Button
-                    onClick={handleCreateStoryBook}
-                    size="lg"
-                    className="font-heading font-medium text-lg px-10 min-h-14 rounded-xl shadow-lg bg-primary hover:bg-primary/90"
-                    data-testid="button-create-storybook"
-                  >
-                    <BookOpen className="w-6 h-6 mr-3" />
-                    Create Full Coloring Story Book
-                  </Button>
-                </div>
               </>
-            )}
-          </div>
-        )}
-
-        {(phase === "story-form" || phase === "storyboard" || phase === "complete") && (
-          <div ref={storyFormRef} className="mt-12 max-w-3xl mx-auto">
-            {phase === "story-form" && (
-              <StoryForm
-                onSubmit={handleStartStory}
-                isLoading={createStoryMutation.isPending}
-              />
-            )}
-
-            {phase === "storyboard" && currentStory && (
-              <div ref={storyboardRef}>
-                <Storyboard
-                  story={currentStory}
-                  onStoryUpdate={handleStoryUpdate}
-                  onComplete={handleStoryComplete}
-                />
-              </div>
-            )}
-
-            {phase === "complete" && currentStory && (
-              <StoryDisplay story={currentStory} onReset={handleReset} />
             )}
           </div>
         )}
