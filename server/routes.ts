@@ -12,7 +12,6 @@ import {
 import { convertToColoringBook } from "./openai";
 import { generateSectionPrompt, generateSectionText, getTotalSections } from "./story";
 import { Buffer } from "node:buffer";
-import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 import { z } from "zod";
 
 const createOrderRequestSchema = z.object({
@@ -78,7 +77,7 @@ export async function registerRoutes(
         characterName,
         storyType,
         characterImageData,
-        originalImageData, // Include original photo for AI reference
+        originalImageData,
         sections: [],
         isComplete: false,
       });
@@ -243,93 +242,6 @@ export async function registerRoutes(
     }
   });
 
-  // Get Stripe publishable key
-  app.get("/api/stripe/config", async (req, res) => {
-    try {
-      const publishableKey = await getStripePublishableKey();
-      res.json({ publishableKey });
-    } catch (error: any) {
-      console.error("Stripe config error:", error);
-      res.status(500).json({ 
-        error: error.message || "Failed to get Stripe config" 
-      });
-    }
-  });
-
-  // Create checkout session for coloring book purchase
-  app.post("/api/orders/checkout", async (req, res) => {
-    try {
-      const validationResult = createOrderRequestSchema.safeParse(req.body);
-      
-      if (!validationResult.success) {
-        return res.status(400).json({ 
-          error: "Invalid request data",
-          details: validationResult.error.errors 
-        });
-      }
-
-      const { storyId, email } = validationResult.data;
-
-      const story = await storage.getStory(storyId);
-      if (!story) {
-        return res.status(404).json({ error: "Story not found" });
-      }
-
-      if (!story.isComplete) {
-        return res.status(400).json({ error: "Story must be complete before purchasing" });
-      }
-
-      const stripe = await getUncachableStripeClient();
-
-      const prices = await storage.listPrices(true, 1, 0);
-      if (prices.length === 0) {
-        return res.status(500).json({ error: "No pricing available. Please try again later." });
-      }
-      const priceId = prices[0].id;
-
-      const baseUrl = `${req.protocol}://${req.get('host')}`;
-
-      const order = await storage.createOrder({
-        storyId,
-        email,
-        status: "pending",
-        totalPages: 26,
-        pagesGenerated: 0,
-      });
-
-      const session = await stripe.checkout.sessions.create({
-        payment_method_types: ['card'],
-        line_items: [{
-          price: priceId,
-          quantity: 1,
-        }],
-        mode: 'payment',
-        success_url: `${baseUrl}/order/${order.id}/success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${baseUrl}/order/${order.id}/cancel`,
-        customer_email: email,
-        metadata: {
-          orderId: order.id,
-          storyId: storyId,
-          characterName: story.characterName,
-        },
-      });
-
-      await storage.updateOrder(order.id, {
-        stripeSessionId: session.id,
-      });
-
-      res.json({ 
-        checkoutUrl: session.url,
-        orderId: order.id,
-      });
-    } catch (error: any) {
-      console.error("Checkout error:", error);
-      res.status(500).json({ 
-        error: error.message || "Failed to create checkout session" 
-      });
-    }
-  });
-
   // Get order status
   app.get("/api/orders/:id", async (req, res) => {
     try {
@@ -352,76 +264,6 @@ export async function registerRoutes(
       console.error("Get order error:", error);
       res.status(500).json({ 
         error: error.message || "Failed to get order" 
-      });
-    }
-  });
-
-  // Verify payment and update order status (fallback if webhook delayed)
-  app.post("/api/orders/:id/verify-payment", async (req, res) => {
-    try {
-      const order = await storage.getOrder(req.params.id);
-      
-      if (!order) {
-        return res.status(404).json({ error: "Order not found" });
-      }
-
-      // If already processed, just return current status
-      if (order.status === 'paid' || order.status === 'generating' || order.status === 'completed') {
-        return res.json({ 
-          status: order.status,
-          message: "Order already processed" 
-        });
-      }
-
-      if (!order.stripeSessionId) {
-        return res.status(400).json({ error: "No payment session found" });
-      }
-
-      const stripe = await getUncachableStripeClient();
-      const session = await stripe.checkout.sessions.retrieve(order.stripeSessionId);
-
-      // Verify session belongs to this order
-      if (session.metadata?.orderId !== order.id) {
-        console.error(`Session ${session.id} metadata.orderId (${session.metadata?.orderId}) doesn't match order ${order.id}`);
-        return res.status(400).json({ error: "Session does not match order" });
-      }
-
-      if (session.payment_status === 'paid') {
-        // Check if webhook already processed this (idempotency)
-        const refreshedOrder = await storage.getOrder(order.id);
-        if (refreshedOrder && (refreshedOrder.status === 'paid' || refreshedOrder.status === 'generating' || refreshedOrder.status === 'completed')) {
-          return res.json({ 
-            status: refreshedOrder.status,
-            message: "Order already processed" 
-          });
-        }
-
-        await storage.updateOrder(order.id, {
-          status: "paid",
-          amountPaid: session.amount_total,
-          stripePaymentIntentId: session.payment_intent as string,
-        });
-
-        // Start book generation (same as webhook handler)
-        const { startBookGeneration } = await import('./bookGenerator');
-        startBookGeneration(order.id).catch((err: unknown) => {
-          console.error(`Failed to start book generation for order ${order.id}:`, err);
-        });
-
-        res.json({ 
-          status: "paid",
-          message: "Payment verified and book generation started" 
-        });
-      } else {
-        res.json({ 
-          status: session.payment_status,
-          message: "Payment not completed" 
-        });
-      }
-    } catch (error: any) {
-      console.error("Verify payment error:", error);
-      res.status(500).json({ 
-        error: error.message || "Failed to verify payment" 
       });
     }
   });
@@ -460,8 +302,8 @@ export async function registerRoutes(
   // Also keep static serving for backward compatibility with existing URLs
   app.use('/downloads', express.static(path.join(process.cwd(), 'uploads/books')));
 
-  // Test endpoint: Generate coloring book without payment (development only)
-  app.post("/api/orders/test-generate", async (req, res) => {
+  // Generate coloring book for a story
+  app.post("/api/orders/generate", async (req, res) => {
     try {
       const validationResult = createOrderRequestSchema.safeParse(req.body);
       
@@ -483,17 +325,17 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Story must be complete before generating" });
       }
 
-      // Create order and mark as paid immediately (bypassing Stripe)
+      // Create order and mark as paid immediately (no payment required)
       const order = await storage.createOrder({
         storyId,
         email,
         status: "paid",
         totalPages: 26,
         pagesGenerated: 0,
-        amountPaid: 0, // Free test
+        amountPaid: 0,
       });
 
-      console.log(`[TEST] Created test order ${order.id} for story ${storyId}`);
+      console.log(`Created order ${order.id} for story ${storyId}`);
 
       // Start book generation immediately
       const { startBookGeneration } = await import('./bookGenerator');
@@ -503,13 +345,13 @@ export async function registerRoutes(
 
       res.json({ 
         orderId: order.id,
-        message: "Test order created - book generation started",
+        message: "Order created - book generation started",
         redirectUrl: `/order/${order.id}`,
       });
     } catch (error: any) {
-      console.error("Test generate error:", error);
+      console.error("Generate error:", error);
       res.status(500).json({ 
-        error: error.message || "Failed to create test order" 
+        error: error.message || "Failed to create order" 
       });
     }
   });

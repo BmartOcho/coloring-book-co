@@ -11,7 +11,7 @@ import {
   type InsertBookPage,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -23,20 +23,11 @@ export interface IStorage {
   
   createOrder(order: Omit<InsertOrder, "id">): Promise<DbOrder>;
   getOrder(id: string): Promise<DbOrder | undefined>;
-  getOrderByStripeSession(sessionId: string): Promise<DbOrder | undefined>;
   updateOrder(id: string, updates: Partial<DbOrder>): Promise<DbOrder | undefined>;
   
   createBookPage(page: Omit<InsertBookPage, "id">): Promise<DbBookPage>;
   getBookPages(orderId: string): Promise<DbBookPage[]>;
   updateBookPage(id: string, updates: Partial<DbBookPage>): Promise<DbBookPage | undefined>;
-  
-  getProduct(productId: string): Promise<any>;
-  listProducts(active?: boolean, limit?: number, offset?: number): Promise<any[]>;
-  listProductsWithPrices(active?: boolean, limit?: number, offset?: number): Promise<any[]>;
-  getPrice(priceId: string): Promise<any>;
-  listPrices(active?: boolean, limit?: number, offset?: number): Promise<any[]>;
-  getPricesForProduct(productId: string): Promise<any[]>;
-  getSubscription(subscriptionId: string): Promise<any>;
 }
 
 function dbStoryToStory(dbStory: DbStory): Story {
@@ -45,7 +36,7 @@ function dbStoryToStory(dbStory: DbStory): Story {
     characterName: dbStory.characterName,
     storyType: dbStory.storyType as Story["storyType"],
     characterImageData: dbStory.characterImageData,
-    originalImageData: dbStory.originalImageData || undefined, // Original photo for AI reference
+    originalImageData: dbStory.originalImageData || undefined,
     sections: dbStory.sections as StorySection[],
     isComplete: dbStory.isComplete,
     createdAt: dbStory.createdAt.toISOString(),
@@ -65,7 +56,7 @@ export class DatabaseStorage implements IStorage {
       characterName: storyData.characterName,
       storyType: storyData.storyType,
       characterImageData: storyData.characterImageData,
-      originalImageData: storyData.originalImageData, // Original photo for AI reference
+      originalImageData: storyData.originalImageData,
       sections: storyData.sections,
       isComplete: storyData.isComplete,
     }).returning();
@@ -119,11 +110,6 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  async getOrderByStripeSession(sessionId: string): Promise<DbOrder | undefined> {
-    const [result] = await db.select().from(orders).where(eq(orders.stripeSessionId, sessionId));
-    return result;
-  }
-
   async updateOrder(id: string, updates: Partial<DbOrder>): Promise<DbOrder | undefined> {
     const [result] = await db.update(orders).set(updates).where(eq(orders.id, id)).returning();
     return result;
@@ -145,78 +131,6 @@ export class DatabaseStorage implements IStorage {
   async updateBookPage(id: string, updates: Partial<DbBookPage>): Promise<DbBookPage | undefined> {
     const [result] = await db.update(bookPages).set(updates).where(eq(bookPages.id, id)).returning();
     return result;
-  }
-
-  async getProduct(productId: string) {
-    const result = await db.execute(
-      sql`SELECT * FROM stripe.products WHERE id = ${productId}`
-    );
-    return (result as any)[0] || null;
-  }
-
-  async listProducts(active = true, limit = 20, offset = 0) {
-    const result = await db.execute(
-      sql`SELECT * FROM stripe.products WHERE active = ${active} LIMIT ${limit} OFFSET ${offset}`
-    );
-    return result as any[];
-  }
-
-  async listProductsWithPrices(active = true, limit = 20, offset = 0) {
-    const result = await db.execute(
-      sql`
-        WITH paginated_products AS (
-          SELECT id, name, description, metadata, active
-          FROM stripe.products
-          WHERE active = ${active}
-          ORDER BY id
-          LIMIT ${limit} OFFSET ${offset}
-        )
-        SELECT 
-          p.id as product_id,
-          p.name as product_name,
-          p.description as product_description,
-          p.active as product_active,
-          p.metadata as product_metadata,
-          pr.id as price_id,
-          pr.unit_amount,
-          pr.currency,
-          pr.recurring,
-          pr.active as price_active,
-          pr.metadata as price_metadata
-        FROM paginated_products p
-        LEFT JOIN stripe.prices pr ON pr.product = p.id AND pr.active = true
-        ORDER BY p.id, pr.unit_amount
-      `
-    );
-    return result as any[];
-  }
-
-  async getPrice(priceId: string) {
-    const result = await db.execute(
-      sql`SELECT * FROM stripe.prices WHERE id = ${priceId}`
-    );
-    return (result as any)[0] || null;
-  }
-
-  async listPrices(active = true, limit = 20, offset = 0) {
-    const result = await db.execute(
-      sql`SELECT * FROM stripe.prices WHERE active = ${active} LIMIT ${limit} OFFSET ${offset}`
-    );
-    return result as any[];
-  }
-
-  async getPricesForProduct(productId: string) {
-    const result = await db.execute(
-      sql`SELECT * FROM stripe.prices WHERE product = ${productId} AND active = true`
-    );
-    return result as any[];
-  }
-
-  async getSubscription(subscriptionId: string) {
-    const result = await db.execute(
-      sql`SELECT * FROM stripe.subscriptions WHERE id = ${subscriptionId}`
-    );
-    return (result as any)[0] || null;
   }
 }
 

@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { BookOpen, Download, RotateCcw, ImageIcon, ShoppingCart, Loader2, Mail, FlaskConical } from "lucide-react";
+import { BookOpen, Download, RotateCcw, ImageIcon, Sparkles, Loader2, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Story } from "@shared/schema";
@@ -16,13 +16,12 @@ interface StoryDisplayProps {
 
 export function StoryDisplay({ story, onReset }: StoryDisplayProps) {
   const [email, setEmail] = useState("");
-  const [isCheckingOut, setIsCheckingOut] = useState(false);
-  const [isTestGenerating, setIsTestGenerating] = useState(false);
-  const [showCheckout, setShowCheckout] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [showEmailForm, setShowEmailForm] = useState(false);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
-  const handleCheckout = async () => {
+  const handleGenerate = async () => {
     if (!email || !email.includes("@")) {
       toast({
         title: "Email required",
@@ -32,45 +31,9 @@ export function StoryDisplay({ story, onReset }: StoryDisplayProps) {
       return;
     }
 
-    setIsCheckingOut(true);
+    setIsGenerating(true);
     try {
-      const response = await apiRequest("POST", "/api/orders/checkout", {
-        storyId: story.id,
-        email,
-      });
-      
-      const data = await response.json();
-      
-      if (data.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
-      } else {
-        throw new Error("Failed to create checkout session");
-      }
-    } catch (error: any) {
-      console.error("Checkout error:", error);
-      toast({
-        title: "Checkout failed",
-        description: error.message || "Unable to start checkout. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsCheckingOut(false);
-    }
-  };
-
-  const handleTestGenerate = async () => {
-    if (!email || !email.includes("@")) {
-      toast({
-        title: "Email required",
-        description: "Please enter a valid email address to receive your coloring book.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsTestGenerating(true);
-    try {
-      const response = await apiRequest("POST", "/api/orders/test-generate", {
+      const response = await apiRequest("POST", "/api/orders/generate", {
         storyId: story.id,
         email,
       });
@@ -79,22 +42,22 @@ export function StoryDisplay({ story, onReset }: StoryDisplayProps) {
       
       if (data.orderId) {
         toast({
-          title: "Test generation started!",
+          title: "Generation started!",
           description: "Redirecting to order status page...",
         });
         setLocation(`/order/${data.orderId}`);
       } else {
-        throw new Error("Failed to create test order");
+        throw new Error("Failed to create order");
       }
     } catch (error: any) {
-      console.error("Test generate error:", error);
+      console.error("Generate error:", error);
       toast({
-        title: "Test generation failed",
-        description: error.message || "Unable to start test generation. Please try again.",
+        title: "Generation failed",
+        description: error.message || "Unable to start generation. Please try again.",
         variant: "destructive",
       });
     } finally {
-      setIsTestGenerating(false);
+      setIsGenerating(false);
     }
   };
 
@@ -193,10 +156,10 @@ export function StoryDisplay({ story, onReset }: StoryDisplayProps) {
         </div>
 
         <div className="p-5 bg-gradient-to-r from-primary/10 to-accent/10 rounded-xl border border-primary/20">
-          {!showCheckout ? (
+          {!showEmailForm ? (
             <div className="space-y-3">
               <div className="flex items-start gap-3">
-                <ShoppingCart className="w-6 h-6 text-primary mt-0.5 flex-shrink-0" />
+                <Sparkles className="w-6 h-6 text-primary mt-0.5 flex-shrink-0" />
                 <div>
                   <h3 className="font-heading font-semibold text-lg text-[#2C3E50] dark:text-foreground">
                     Get Your Personalized Coloring Book!
@@ -220,12 +183,12 @@ export function StoryDisplay({ story, onReset }: StoryDisplayProps) {
               </div>
               
               <Button
-                onClick={() => setShowCheckout(true)}
+                onClick={() => setShowEmailForm(true)}
                 className="w-full h-12 rounded-xl font-heading font-semibold bg-primary hover:bg-primary/90 text-white"
-                data-testid="button-order-book"
+                data-testid="button-generate-book"
               >
-                <ShoppingCart className="w-5 h-5 mr-2" />
-                Order Coloring Book - $45.00
+                <Sparkles className="w-5 h-5 mr-2" />
+                Generate Coloring Book
               </Button>
             </div>
           ) : (
@@ -242,75 +205,50 @@ export function StoryDisplay({ story, onReset }: StoryDisplayProps) {
               </p>
               
               <div className="space-y-2">
-                <Label htmlFor="checkout-email" className="text-[#2C3E50] dark:text-foreground">
+                <Label htmlFor="generate-email" className="text-[#2C3E50] dark:text-foreground">
                   Email address
                 </Label>
                 <Input
-                  id="checkout-email"
+                  id="generate-email"
                   type="email"
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="h-11 rounded-lg"
-                  disabled={isCheckingOut}
-                  data-testid="input-checkout-email"
+                  disabled={isGenerating}
+                  data-testid="input-generate-email"
                 />
               </div>
               
               <div className="flex gap-3">
                 <Button
                   variant="outline"
-                  onClick={() => setShowCheckout(false)}
+                  onClick={() => setShowEmailForm(false)}
                   className="h-11 rounded-lg font-heading"
-                  disabled={isCheckingOut || isTestGenerating}
-                  data-testid="button-cancel-checkout"
+                  disabled={isGenerating}
+                  data-testid="button-cancel-generate"
                 >
                   Cancel
                 </Button>
                 
                 <Button
-                  onClick={handleCheckout}
-                  disabled={isCheckingOut || isTestGenerating || !email}
+                  onClick={handleGenerate}
+                  disabled={isGenerating || !email}
                   className="flex-1 h-11 rounded-lg font-heading font-semibold bg-primary hover:bg-primary/90 text-white"
-                  data-testid="button-proceed-checkout"
+                  data-testid="button-start-generate"
                 >
-                  {isCheckingOut ? (
+                  {isGenerating ? (
                     <>
                       <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      Processing...
+                      Starting...
                     </>
                   ) : (
                     <>
-                      <ShoppingCart className="w-5 h-5 mr-2" />
-                      Proceed to Payment
+                      <Sparkles className="w-5 h-5 mr-2" />
+                      Generate Book
                     </>
                   )}
                 </Button>
-              </div>
-              
-              <div className="pt-3 border-t border-border/50">
-                <Button
-                  onClick={handleTestGenerate}
-                  disabled={isCheckingOut || isTestGenerating || !email}
-                  variant="outline"
-                  className="w-full h-11 rounded-lg font-heading border-dashed"
-                  data-testid="button-test-generate"
-                >
-                  {isTestGenerating ? (
-                    <>
-                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      Starting test...
-                    </>
-                  ) : (
-                    <>
-                      <FlaskConical className="w-5 h-5 mr-2" />
-                      Test Generate (Skip Payment)
-                    </>
-                  )}
-                </Button>
-                <p className="text-xs text-muted-foreground text-center mt-2">
-                  For testing purposes only - bypasses payment
-                </p>
               </div>
             </div>
           )}

@@ -16,13 +16,11 @@ export const stories = pgTable("stories", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-// Orders table - tracks book purchases
+// Orders table - tracks book generation requests
 export const orders = pgTable("orders", {
   id: varchar("id", { length: 36 }).primaryKey(),
   storyId: varchar("story_id", { length: 36 }).notNull().references(() => stories.id),
   email: text("email").notNull(),
-  stripeSessionId: text("stripe_session_id"),
-  stripePaymentIntentId: text("stripe_payment_intent_id"),
   status: varchar("status", { length: 20 }).notNull().default("pending"),
   amountPaid: integer("amount_paid"),
   pagesGenerated: integer("pages_generated").notNull().default(0),
