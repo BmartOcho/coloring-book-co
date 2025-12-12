@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { imageConversionRequestSchema } from "@shared/schema";
 import { convertToColoringBook } from "./openai";
+import { generateColoringBookPDF } from "./pdf";
 import { Buffer } from "node:buffer";
 
 export async function registerRoutes(
@@ -40,6 +41,30 @@ export async function registerRoutes(
       console.error("Conversion error:", error);
       res.status(500).json({ 
         error: error.message || "Failed to convert image" 
+      });
+    }
+  });
+
+  // PDF download endpoint
+  app.post("/api/convert-pdf", async (req, res) => {
+    try {
+      const { imageData } = req.body;
+      
+      if (!imageData) {
+        return res.status(400).json({ 
+          error: "Image data is required" 
+        });
+      }
+
+      const pdfBuffer = await generateColoringBookPDF(imageData);
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="coloring-book-${Date.now()}.pdf"`);
+      res.send(pdfBuffer);
+    } catch (error: any) {
+      console.error("PDF generation error:", error);
+      res.status(500).json({ 
+        error: error.message || "Failed to generate PDF" 
       });
     }
   });

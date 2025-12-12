@@ -144,21 +144,36 @@ export default function Home() {
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!coloringBookImage) return;
 
-    const link = document.createElement("a");
-    link.href = coloringBookImage;
-    link.download = "coloring-book-" + Date.now() + ".png";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      const response = await apiRequest("POST", "/api/convert-pdf", {
+        imageData: coloringBookImage,
+      });
 
-    toast({
-      title: "Downloaded!",
-      description: "Your coloring page has been saved.",
-      className: "bg-[#95E1D3] border-[#95E1D3] text-[#2C3E50]",
-    });
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "coloring-book-" + Date.now() + ".pdf";
+      document.body.appendChild(link);
+      link.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+
+      toast({
+        title: "Downloaded!",
+        description: "Your coloring page PDF has been saved.",
+        className: "bg-[#95E1D3] border-[#95E1D3] text-[#2C3E50]",
+      });
+    } catch (error) {
+      toast({
+        title: "Download failed",
+        description: "Failed to generate PDF. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleNewImage = () => {
