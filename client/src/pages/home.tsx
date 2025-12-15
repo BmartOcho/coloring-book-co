@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Upload, Download, Loader2, CheckCircle, ImageIcon } from "lucide-react";
+import { Upload, Download, Loader2, CheckCircle, ImageIcon, BookOpen, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
@@ -8,6 +8,9 @@ import { apiRequest } from "@/lib/queryClient";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { useLocation } from "wouter";
 import type { ImageConversionResponse } from "@shared/schema";
 
 type AppPhase = "upload" | "preview" | "converted";
@@ -20,7 +23,10 @@ export default function Home() {
   const [coloringBookImage, setColoringBookImage] = useState<string>("");
   const [isDragging, setIsDragging] = useState(false);
   const [detailLevel, setDetailLevel] = useState<DetailLevel>("1");
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [email, setEmail] = useState("");
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   const convertMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -59,6 +65,49 @@ export default function Home() {
       });
     },
   });
+
+  const orderMutation = useMutation({
+    mutationFn: async ({ email, sourceImage, initialColoringImage }: { email: string; sourceImage: string; initialColoringImage: string }) => {
+      const response = await apiRequest("POST", "/api/orders", {
+        email,
+        sourceImage,
+        initialColoringImage,
+      });
+      return response.json();
+    },
+    onSuccess: (data: { orderId: number; progressUrl: string; message: string }) => {
+      setEmailDialogOpen(false);
+      setEmail("");
+      toast({
+        title: "Order created!",
+        description: "Your full coloring book is being generated. Check your email for the progress link.",
+        className: "bg-[#95E1D3] border-[#95E1D3] text-[#2C3E50]",
+      });
+      setLocation(`/progress/${data.orderId}`);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to create order",
+        description: error.message || "Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleGenerateFullBook = () => {
+    setEmailDialogOpen(true);
+  };
+
+  const handleSubmitEmail = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !originalPreview || !coloringBookImage) return;
+
+    orderMutation.mutate({
+      email,
+      sourceImage: originalPreview,
+      initialColoringImage: coloringBookImage,
+    });
+  };
 
   const handleFileSelect = (file: File) => {
     if (!file.type.startsWith("image/")) {
@@ -341,6 +390,10 @@ export default function Home() {
                     <Download className="w-5 h-5 mr-2" />
                     Download Coloring Page
                   </Button>
+                  <Button onClick={handleGenerateFullBook} variant="secondary" className="font-heading font-medium text-base px-8 min-h-12 rounded-xl shadow-md w-full sm:w-auto" data-testid="button-full-book">
+                    <BookOpen className="w-5 h-5 mr-2" />
+                    Generate Full Coloring Book (25 Pages)
+                  </Button>
                   <Button onClick={handleNewImage} variant="outline" className="font-heading font-medium text-base px-8 min-h-12 rounded-xl w-full sm:w-auto" data-testid="button-new">
                     Create Another
                   </Button>
@@ -349,6 +402,61 @@ export default function Home() {
             )}
           </div>
         )}
+
+        <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="font-heading text-[#2C3E50] dark:text-foreground">Generate Full Coloring Book</DialogTitle>
+              <DialogDescription className="text-[#2C3E50]/70 dark:text-muted-foreground">
+                Enter your email to receive a link to track progress and download your 25-page coloring book when it's ready.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmitEmail} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-[#2C3E50] dark:text-foreground">Email address</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#2C3E50]/40 dark:text-muted-foreground" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="your@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pl-10"
+                    required
+                    data-testid="input-email"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button
+                  type="submit"
+                  disabled={orderMutation.isPending || !email}
+                  className="flex-1 font-heading font-medium"
+                  data-testid="button-submit-email"
+                >
+                  {orderMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    "Start Generation"
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEmailDialogOpen(false)}
+                  className="font-heading font-medium"
+                  data-testid="button-cancel-email"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
