@@ -67,11 +67,12 @@ export default function Home() {
   });
 
   const orderMutation = useMutation({
-    mutationFn: async ({ email, sourceImage, initialColoringImage }: { email: string; sourceImage: string; initialColoringImage: string }) => {
+    mutationFn: async ({ email, sourceImage, initialColoringImage, detailLevel }: { email: string; sourceImage: string; initialColoringImage: string; detailLevel: string }) => {
       const response = await apiRequest("POST", "/api/orders", {
         email,
         sourceImage,
         initialColoringImage,
+        detailLevel,
       });
       return response.json();
     },
@@ -106,6 +107,7 @@ export default function Home() {
       email,
       sourceImage: originalPreview,
       initialColoringImage: coloringBookImage,
+      detailLevel,
     });
   };
 

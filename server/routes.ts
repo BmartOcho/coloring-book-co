@@ -84,16 +84,17 @@ export async function registerRoutes(
         });
       }
 
-      const { email, sourceImage, initialColoringImage } = validationResult.data;
+      const { email, sourceImage, initialColoringImage, detailLevel } = validationResult.data;
 
       // Create order in database
       const order = await storage.createOrder({
         email,
         sourceImage,
         initialColoringImage,
+        detailLevel,
         status: "pending",
         currentPage: 1,
-        totalPages: 25,
+        totalPages: 30,
         generatedImages: [initialColoringImage],
       });
 

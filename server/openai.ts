@@ -21,6 +21,7 @@ export async function convertToColoringBook(
   imageBuffer: Buffer,
   fileName: string,
   detailLevel: "1" | "2" | "3" = "1",
+  scenePrompt?: string,
 ): Promise<string> {
   return await pRetry(
     async () => {
@@ -39,13 +40,22 @@ export async function convertToColoringBook(
 
         let prompt = "";
         
-        if (detailLevel === "1") {
-          prompt =
-            "Convert this photo into a clean, Disney-Pixar-style black and white line art drawing suitable for a children's coloring book. The output should have: Bold, clear outlines that are easy to color within. Disney-Pixar-like stylization of all features. High contrast black lines on white background. Accurate details that maintain recognizability. Kid-friendly aesthetic with smooth, rounded shapes. No shading, gradients, or color fills - only clean line art. Keep composition true to the original.";
+        if (scenePrompt) {
+          // Scene-based generation for coloring book pages
+          if (detailLevel === "1") {
+            prompt = `Convert the subject from this photo into a clean, Disney-Pixar-style black and white line art coloring book page. Show the subject ${scenePrompt}. The output should have: Bold, clear outlines that are easy to color within. Disney-Pixar-like stylization. High contrast black lines on white background. Kid-friendly aesthetic with smooth, rounded shapes. No shading, gradients, or color fills - only clean line art.`;
+          } else {
+            prompt = `Convert the subject from this photo into a clean, Disney-Pixar-style black and white line art coloring book page. Show the subject ${scenePrompt}. The output should have: More complex and detailed line work. Refined features and textures. Increased decorative elements and pattern details. High contrast black lines on white background. Thinner lines throughout. No shading, gradients, or color fills - only clean line art.`;
+          }
         } else {
-          // detailLevel === "2"
-          prompt =
-            "Convert this photo into a clean, Disney-Pixar-style black and white line art drawing suitable for a children's coloring book. The output should have: More complex and detailed line work than simple style. Refined features and textures. Increased decorative elements and pattern details. High contrast black lines on white background. Thinner lines throughout than simple style. No shading, gradients, or color fills - only clean line art. Keep composition true to the original.";
+          // Original image conversion (no scene)
+          if (detailLevel === "1") {
+            prompt =
+              "Convert this photo into a clean, Disney-Pixar-style black and white line art drawing suitable for a children's coloring book. The output should have: Bold, clear outlines that are easy to color within. Disney-Pixar-like stylization of all features. High contrast black lines on white background. Accurate details that maintain recognizability. Kid-friendly aesthetic with smooth, rounded shapes. No shading, gradients, or color fills - only clean line art. Keep composition true to the original.";
+          } else {
+            prompt =
+              "Convert this photo into a clean, Disney-Pixar-style black and white line art drawing suitable for a children's coloring book. The output should have: More complex and detailed line work than simple style. Refined features and textures. Increased decorative elements and pattern details. High contrast black lines on white background. Thinner lines throughout than simple style. No shading, gradients, or color fills - only clean line art. Keep composition true to the original.";
+          }
         }
 
         prompt += " No shading, gradients, or color fills - only clean line art.";

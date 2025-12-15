@@ -8,9 +8,10 @@ export const coloringBookOrders = pgTable("coloring_book_orders", {
   email: text("email").notNull(),
   sourceImage: text("source_image").notNull(), // base64 of source image
   initialColoringImage: text("initial_coloring_image").notNull(), // base64 of first coloring page
+  detailLevel: text("detail_level").notNull().default("1"), // 1=simple, 2=complex
   status: text("status").notNull().default("pending"), // pending, generating, completed, failed
   currentPage: integer("current_page").notNull().default(0),
-  totalPages: integer("total_pages").notNull().default(25),
+  totalPages: integer("total_pages").notNull().default(30),
   generatedImages: jsonb("generated_images").$type<string[]>().notNull().default([]),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   completedAt: timestamp("completed_at"),
@@ -48,6 +49,7 @@ export const createOrderRequestSchema = z.object({
   email: z.string().email(),
   sourceImage: z.string(), // base64 encoded
   initialColoringImage: z.string(), // base64 encoded
+  detailLevel: z.enum(["1", "2"]).default("1"), // 1=simple, 2=complex
 });
 
 export type CreateOrderRequest = z.infer<typeof createOrderRequestSchema>;
