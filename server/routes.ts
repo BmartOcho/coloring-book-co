@@ -12,6 +12,20 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  // Health check endpoint
+  app.get("/api/health", (req, res) => {
+    const hasOpenAI = !!(process.env.AI_INTEGRATIONS_OPENAI_API_KEY && process.env.AI_INTEGRATIONS_OPENAI_BASE_URL);
+    const hasResend = !!process.env.RESEND_API_KEY;
+    const hasDatabase = !!process.env.DATABASE_URL;
+    
+    res.json({
+      status: "ok",
+      openai: hasOpenAI ? "configured" : "missing",
+      email: hasResend ? "configured" : "missing",
+      database: hasDatabase ? "configured" : "missing",
+    });
+  });
+
   // Image conversion endpoint
   app.post("/api/convert", async (req, res) => {
     try {
