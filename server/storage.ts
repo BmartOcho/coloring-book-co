@@ -15,7 +15,7 @@ export interface IStorage {
 
 export class DatabaseStorage implements IStorage {
   async createOrder(order: InsertColoringBookOrder): Promise<ColoringBookOrder> {
-    const [newOrder] = await db.insert(coloringBookOrders).values(order).returning();
+    const [newOrder] = await db.insert(coloringBookOrders).values([order]).returning();
     return newOrder;
   }
 
