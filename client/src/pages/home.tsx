@@ -394,7 +394,7 @@ export default function Home() {
                   </Button>
                   <Button onClick={handleGenerateFullBook} variant="secondary" className="font-heading font-medium text-base px-8 min-h-12 rounded-xl shadow-md w-full sm:w-auto" data-testid="button-full-book">
                     <BookOpen className="w-5 h-5 mr-2" />
-                    Generate Full Coloring Book (25 Pages)
+                    Generate Full Coloring Book (30 Pages)
                   </Button>
                   <Button onClick={handleNewImage} variant="outline" className="font-heading font-medium text-base px-8 min-h-12 rounded-xl w-full sm:w-auto" data-testid="button-new">
                     Create Another
@@ -410,7 +410,7 @@ export default function Home() {
             <DialogHeader>
               <DialogTitle className="font-heading text-[#2C3E50] dark:text-foreground">Generate Full Coloring Book</DialogTitle>
               <DialogDescription className="text-[#2C3E50]/70 dark:text-muted-foreground">
-                Enter your email to receive a link to track progress and download your 25-page coloring book when it's ready.
+                Enter your email to receive a link to track progress and download your 30-page coloring book when it's ready.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmitEmail} className="space-y-4">

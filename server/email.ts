@@ -16,7 +16,7 @@ export async function sendOrderConfirmationEmail(
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <h1 style="color: #2C3E50;">Thank You for Your Order!</h1>
           <p style="color: #555; font-size: 16px; line-height: 1.6;">
-            We're creating your personalized 25-page coloring book. This process takes a few minutes as we generate each unique page based on your uploaded image.
+            We're creating your personalized 30-page coloring book. This process takes a few minutes as we generate each unique page based on your uploaded image.
           </p>
           <p style="color: #555; font-size: 16px; line-height: 1.6;">
             <strong>Order ID:</strong> #${orderId}
@@ -56,7 +56,7 @@ export async function sendCompletionEmail(
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <h1 style="color: #2C3E50;">Your Coloring Book is Complete!</h1>
           <p style="color: #555; font-size: 16px; line-height: 1.6;">
-            Great news! Your personalized 25-page coloring book has been generated and is ready for download.
+            Great news! Your personalized 30-page coloring book has been generated and is ready for download.
           </p>
           <p style="color: #555; font-size: 16px; line-height: 1.6;">
             <strong>Order ID:</strong> #${orderId}

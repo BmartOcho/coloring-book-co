@@ -101,7 +101,7 @@ export async function sendBookReadyEmail(
             
             <div style="background: white; border-radius: 16px; padding: 40px; margin-top: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
               <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 20px;">
-                Great news! Your personalized 25-page coloring story book featuring <strong>${characterName}</strong> has been created and is ready for download.
+                Great news! Your personalized 30-page coloring story book featuring <strong>${characterName}</strong> has been created and is ready for download.
               </p>
               
               <p style="font-size: 16px; color: #333; line-height: 1.6; margin: 0 0 30px;">
