@@ -48,7 +48,7 @@ export default function ProgressPage() {
         return (
           <div className="flex items-center gap-2 text-primary">
             <Loader2 className="w-5 h-5 animate-spin" />
-            <span>Generating page {order.currentPage} of {order.totalPages}...</span>
+            <span>Generating your coloring book... {Math.round(progressPercentage)}% complete</span>
           </div>
         );
       case "completed":
@@ -122,13 +122,9 @@ export default function ProgressPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="flex justify-between text-sm text-muted-foreground">
-                <span>Progress</span>
-                <span>{order.currentPage} of {order.totalPages} pages</span>
-              </div>
               <Progress value={progressPercentage} className="h-3" data-testid="progress-bar" />
               <p className="text-center text-sm text-muted-foreground">
-                {Math.round(progressPercentage)}% complete
+                {Math.round(progressPercentage)}% complete ({order.currentPage} of {order.totalPages} pages)
               </p>
             </div>
 

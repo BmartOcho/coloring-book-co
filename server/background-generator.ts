@@ -62,12 +62,15 @@ export async function startBackgroundGeneration(orderId: number): Promise<void> 
   let hasFailed = false;
   
   try {
+    console.log(`[Order ${orderId}] Starting background generation...`);
+    
     const order = await storage.getOrder(orderId);
     if (!order) {
-      console.error(`Order ${orderId} not found`);
+      console.error(`[Order ${orderId}] Order not found in database`);
       return;
     }
 
+    console.log(`[Order ${orderId}] Order found, setting status to generating`);
     await storage.updateOrderStatus(orderId, "generating");
 
     // Get the detail level from the order (default to "1" if not set)
@@ -76,9 +79,9 @@ export async function startBackgroundGeneration(orderId: number): Promise<void> 
     // Select 29 random unique prompts for the remaining pages
     const scenePrompts = selectRandomPrompts(order.totalPages - 1);
 
-    console.log(`Starting generation of ${order.totalPages - 1} additional pages for order ${orderId}`);
-    console.log(`Using detail level: ${detailLevel === "1" ? "Simple" : "Complex"}`);
-    console.log(`Parallel mode: ${CONCURRENT_GENERATIONS} concurrent, 4/min rate limit`);
+    console.log(`[Order ${orderId}] Starting generation of ${order.totalPages - 1} additional pages`);
+    console.log(`[Order ${orderId}] Detail level: ${detailLevel === "1" ? "Simple" : "Complex"}`);
+    console.log(`[Order ${orderId}] Parallel mode: ${CONCURRENT_GENERATIONS} concurrent, 4/min rate limit`);
 
     // Pre-cache the image buffer
     const sourceImageBuffer = getImageBuffer(orderId, order.sourceImage);
@@ -123,8 +126,7 @@ export async function startBackgroundGeneration(orderId: number): Promise<void> 
         pageResults[task.arrayIndex] = pageImage;
         successCount++;
         
-        // Update progress with contiguous completed pages
-        // Count how many pages are complete from the start
+        // Count contiguous pages from the start (for ordered images in DB)
         let contiguousCount = 0;
         for (let i = 0; i < pageResults.length; i++) {
           if (pageResults[i] !== null) {
@@ -134,13 +136,14 @@ export async function startBackgroundGeneration(orderId: number): Promise<void> 
           }
         }
         
-        // Only update if we have more contiguous pages than before
+        // Store only contiguous images in correct order, but report successCount for progress %
         const contiguousImages = pageResults.slice(0, contiguousCount).filter((img): img is string => img !== null);
-        if (contiguousImages.length > 0) {
-          await storage.updateOrderProgress(orderId, contiguousCount, contiguousImages);
-        }
         
-        console.log(`Page ${task.pageNumber} complete (${successCount}/${order.totalPages}, contiguous: ${contiguousCount})`);
+        // Use successCount for progress percentage display (actual completed count)
+        // Store contiguous images for proper PDF ordering
+        await storage.updateOrderProgress(orderId, successCount, contiguousImages);
+        
+        console.log(`[Order ${orderId}] Page ${task.pageNumber} complete (${successCount}/${order.totalPages} total, ${contiguousCount} contiguous)`);
         
         return { pageNumber: task.pageNumber, success: true };
       } catch (error) {
