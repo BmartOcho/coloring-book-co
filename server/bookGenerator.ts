@@ -4,9 +4,9 @@ import pRetry from 'p-retry';
 import { assemblePDF } from './pdfAssembler';
 import { sendBookReadyEmail } from './emailClient';
 
-// Set to true for faster testing iterations (5 pages instead of 25)
+// Set to true for faster testing iterations (5 pages instead of 30)
 const TEST_MODE = true;
-const TOTAL_PAGES = TEST_MODE ? 5 : 25;
+const TOTAL_PAGES = TEST_MODE ? 5 : 30;
 const COVER_PAGE = 1;
 
 const openai = new OpenAI({
