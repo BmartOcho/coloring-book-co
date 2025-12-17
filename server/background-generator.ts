@@ -1,6 +1,7 @@
 import { storage } from "./storage";
 import { convertToColoringBook } from "./openai";
 import { selectRandomPrompts } from "./prompts";
+import { sendCompletionEmail } from "./email";
 import { Buffer } from "node:buffer";
 import PQueue from "p-queue";
 
@@ -51,7 +52,7 @@ function getImageBuffer(orderId: number, sourceImageBase64: string): Buffer {
   return imageBuffer;
 }
 
-export async function startBackgroundGeneration(orderId: number, resumeFromPage: number = 1): Promise<void> {
+export async function startBackgroundGeneration(orderId: number, resumeFromPage: number = 1, baseUrl?: string): Promise<void> {
   // Prevent duplicate processing
   if (activeOrders.has(orderId)) {
     console.log(`[Order ${orderId}] Already being processed, skipping`);
@@ -240,6 +241,17 @@ export async function startBackgroundGeneration(orderId: number, resumeFromPage:
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     await storage.updateOrderStatus(orderId, "completed", new Date());
     console.log(`Order ${orderId} completed with ${finalImages.length} pages in ${elapsed}s`);
+
+    // Send completion email with download link
+    if (order.email && baseUrl) {
+      const progressUrl = `${baseUrl}/progress/${orderId}`;
+      try {
+        await sendCompletionEmail(order.email, orderId, progressUrl);
+        console.log(`[Order ${orderId}] Completion email sent to ${order.email}`);
+      } catch (emailError) {
+        console.error(`[Order ${orderId}] Failed to send completion email:`, emailError);
+      }
+    }
   } catch (error) {
     console.error(`Background generation failed for order ${orderId}:`, error);
     imageBufferCache.delete(orderId);
@@ -261,12 +273,34 @@ export async function checkAndResumeOrders(): Promise<void> {
     
     console.log(`[Resume] Found ${ordersToResume.length} order(s) to resume`);
     
+    // Construct base URL for emails
+    // Priority: DEPLOYMENT_URL env > Replit deployment domain > dev domain > localhost
+    let baseUrl = process.env.DEPLOYMENT_URL;
+    
+    if (!baseUrl) {
+      const replSlug = process.env.REPL_SLUG;
+      const replOwner = process.env.REPL_OWNER;
+      
+      if (process.env.REPLIT_DEPLOYMENT && replSlug) {
+        // Production deployment
+        baseUrl = `https://${replSlug}.replit.app`;
+      } else if (replSlug && replOwner) {
+        // Dev environment
+        baseUrl = `https://${replSlug}.${replOwner}.repl.co`;
+      } else {
+        // Fallback to localhost
+        baseUrl = `http://localhost:${process.env.PORT || 5000}`;
+      }
+    }
+    
+    console.log(`[Resume] Using base URL for emails: ${baseUrl}`);
+    
     for (const order of ordersToResume) {
       const completedPages = order.generatedImages?.length || 1;
       console.log(`[Resume] Resuming order ${order.id} from page ${completedPages + 1}`);
       
       // Start background generation for this order (will resume from where it left off)
-      startBackgroundGeneration(order.id, completedPages + 1).catch(err => {
+      startBackgroundGeneration(order.id, completedPages + 1, baseUrl).catch(err => {
         console.error(`[Resume] Failed to resume order ${order.id}:`, err);
       });
     }

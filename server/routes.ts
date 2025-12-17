@@ -126,7 +126,8 @@ export async function registerRoutes(
       }
 
       // Start background generation (don't await - let it run in background)
-      startBackgroundGeneration(order.id).catch((err) => {
+      const baseUrl = `${protocol}://${host}`;
+      startBackgroundGeneration(order.id, 1, baseUrl).catch((err) => {
         console.error("Background generation error:", err);
       });
 
