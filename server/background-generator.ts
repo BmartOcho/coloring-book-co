@@ -118,6 +118,7 @@ export async function startBackgroundGeneration(orderId: number, resumeFromPage:
     
     if (pagesNeeded <= 0) {
       console.log(`[Order ${orderId}] All pages already generated, marking complete`);
+      imageBufferCache.delete(orderId);
       activeOrders.delete(orderId);
       await storage.updateOrderStatus(orderId, "completed", new Date());
       return;
