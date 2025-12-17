@@ -12,6 +12,9 @@ import PQueue from "p-queue";
 // We use 2 concurrent with 4/min rate limit for safety
 const CONCURRENT_GENERATIONS = 2;
 
+// Track active orders to prevent duplicate processing
+const activeOrders = new Set<number>();
+
 // Cache for prepared image buffers (avoid re-decoding base64 for each page)
 const imageBufferCache = new Map<number, Buffer>();
 
@@ -48,8 +51,16 @@ function getImageBuffer(orderId: number, sourceImageBase64: string): Buffer {
   return imageBuffer;
 }
 
-export async function startBackgroundGeneration(orderId: number): Promise<void> {
+export async function startBackgroundGeneration(orderId: number, resumeFromPage: number = 1): Promise<void> {
+  // Prevent duplicate processing
+  if (activeOrders.has(orderId)) {
+    console.log(`[Order ${orderId}] Already being processed, skipping`);
+    return;
+  }
+  activeOrders.add(orderId);
+  
   const startTime = Date.now();
+  const isResume = resumeFromPage > 1;
   
   // Create a dedicated queue for this order (allows cleanup/cancellation)
   const orderQueue = new PQueue({ 
@@ -62,48 +73,76 @@ export async function startBackgroundGeneration(orderId: number): Promise<void> 
   let hasFailed = false;
   
   try {
-    console.log(`[Order ${orderId}] Starting background generation...`);
+    console.log(`[Order ${orderId}] ${isResume ? `Resuming from page ${resumeFromPage}` : 'Starting background generation'}...`);
     
     const order = await storage.getOrder(orderId);
     if (!order) {
       console.error(`[Order ${orderId}] Order not found in database`);
+      activeOrders.delete(orderId);
       return;
     }
 
-    console.log(`[Order ${orderId}] Order found, setting status to generating`);
-    await storage.updateOrderStatus(orderId, "generating");
+    if (!isResume) {
+      console.log(`[Order ${orderId}] Order found, setting status to generating`);
+      await storage.updateOrderStatus(orderId, "generating");
+    } else {
+      console.log(`[Order ${orderId}] Resuming - already has ${order.generatedImages.length} images`);
+    }
 
     // Get the detail level from the order (default to "1" if not set)
     const detailLevel = (order.detailLevel === "2" ? "2" : "1") as "1" | "2";
 
-    // Select 29 random unique prompts for the remaining pages
-    const scenePrompts = selectRandomPrompts(order.totalPages - 1);
-
-    console.log(`[Order ${orderId}] Starting generation of ${order.totalPages - 1} additional pages`);
-    console.log(`[Order ${orderId}] Detail level: ${detailLevel === "1" ? "Simple" : "Complex"}`);
-    console.log(`[Order ${orderId}] Parallel mode: ${CONCURRENT_GENERATIONS} concurrent, 4/min rate limit`);
-
     // Pre-cache the image buffer
     const sourceImageBuffer = getImageBuffer(orderId, order.sourceImage);
 
-    // Initialize results array with slots for all pages
-    // Index 0 = page 1 (initial), Index 1 = page 2, etc.
+    // Initialize results array with existing images (for resume support)
     const pageResults: (string | null)[] = new Array(order.totalPages).fill(null);
-    pageResults[0] = order.initialColoringImage; // First page already done
     
-    // Track progress
-    let successCount = 1; // First page already done
+    // Copy existing images into the results array
+    const existingImages = order.generatedImages || [];
+    for (let i = 0; i < existingImages.length; i++) {
+      pageResults[i] = existingImages[i];
+    }
+    
+    // If no existing images, at least page 1 is done
+    if (existingImages.length === 0) {
+      pageResults[0] = order.initialColoringImage;
+    }
+    
+    // Track progress - count existing images
+    let successCount = Math.max(existingImages.length, 1);
     let failCount = 0;
     
-    // Initial progress update - first page is already done
-    await storage.updateOrderProgress(orderId, 1, [order.initialColoringImage]);
+    // Calculate how many pages still need to be generated
+    const pagesNeeded = order.totalPages - successCount;
+    
+    if (pagesNeeded <= 0) {
+      console.log(`[Order ${orderId}] All pages already generated, marking complete`);
+      activeOrders.delete(orderId);
+      await storage.updateOrderStatus(orderId, "completed", new Date());
+      return;
+    }
 
-    // Build all page generation tasks
-    const pageTasks = scenePrompts.map((scenePrompt, i) => ({
-      pageNumber: i + 2, // Pages are 1-indexed, first page already generated
-      arrayIndex: i + 1, // Array index for this page
-      scenePrompt,
-    }));
+    // Select prompts for remaining pages
+    const scenePrompts = selectRandomPrompts(pagesNeeded);
+
+    console.log(`[Order ${orderId}] ${isResume ? 'Resuming' : 'Starting'} generation of ${pagesNeeded} pages (${successCount} already done)`);
+    console.log(`[Order ${orderId}] Detail level: ${detailLevel === "1" ? "Simple" : "Complex"}`);
+    console.log(`[Order ${orderId}] Parallel mode: ${CONCURRENT_GENERATIONS} concurrent, 4/min rate limit`);
+
+    // Build page generation tasks for remaining pages only
+    const pageTasks: { pageNumber: number; arrayIndex: number; scenePrompt: string }[] = [];
+    let promptIndex = 0;
+    for (let i = 0; i < order.totalPages; i++) {
+      if (pageResults[i] === null && promptIndex < scenePrompts.length) {
+        pageTasks.push({
+          pageNumber: i + 1,
+          arrayIndex: i,
+          scenePrompt: scenePrompts[promptIndex],
+        });
+        promptIndex++;
+      }
+    }
 
     // Generate pages in parallel using p-queue
     const generatePageTask = async (task: typeof pageTasks[0]) => {
@@ -173,6 +212,7 @@ export async function startBackgroundGeneration(orderId: number): Promise<void> 
     if (hasFailed || failCount > 0) {
       console.error(`Order ${orderId}: ${failCount} pages failed to generate - marking as failed`);
       imageBufferCache.delete(orderId);
+      activeOrders.delete(orderId);
       await storage.updateOrderStatus(orderId, "failed");
       return;
     }
@@ -184,6 +224,7 @@ export async function startBackgroundGeneration(orderId: number): Promise<void> 
     if (finalImages.length !== order.totalPages) {
       console.error(`Order ${orderId}: Expected ${order.totalPages} pages but got ${finalImages.length} - marking as failed`);
       imageBufferCache.delete(orderId);
+      activeOrders.delete(orderId);
       await storage.updateOrderStatus(orderId, "failed");
       return;
     }
@@ -191,8 +232,9 @@ export async function startBackgroundGeneration(orderId: number): Promise<void> 
     // Final progress update with complete ordered array
     await storage.updateOrderProgress(orderId, order.totalPages, finalImages);
 
-    // Clean up cache
+    // Clean up cache and tracking
     imageBufferCache.delete(orderId);
+    activeOrders.delete(orderId);
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     await storage.updateOrderStatus(orderId, "completed", new Date());
@@ -200,7 +242,34 @@ export async function startBackgroundGeneration(orderId: number): Promise<void> 
   } catch (error) {
     console.error(`Background generation failed for order ${orderId}:`, error);
     imageBufferCache.delete(orderId);
+    activeOrders.delete(orderId);
     orderQueue.clear();
     await storage.updateOrderStatus(orderId, "failed");
+  }
+}
+
+// Check for and resume any interrupted orders on server startup
+export async function checkAndResumeOrders(): Promise<void> {
+  try {
+    const ordersToResume = await storage.getOrdersToResume();
+    
+    if (ordersToResume.length === 0) {
+      console.log("[Resume] No interrupted orders to resume");
+      return;
+    }
+    
+    console.log(`[Resume] Found ${ordersToResume.length} order(s) to resume`);
+    
+    for (const order of ordersToResume) {
+      const completedPages = order.generatedImages?.length || 1;
+      console.log(`[Resume] Resuming order ${order.id} from page ${completedPages + 1}`);
+      
+      // Start background generation for this order (will resume from where it left off)
+      startBackgroundGeneration(order.id, completedPages + 1).catch(err => {
+        console.error(`[Resume] Failed to resume order ${order.id}:`, err);
+      });
+    }
+  } catch (error) {
+    console.error("[Resume] Error checking for orders to resume:", error);
   }
 }

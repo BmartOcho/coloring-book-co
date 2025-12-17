@@ -11,6 +11,7 @@ export interface IStorage {
   getOrder(id: number): Promise<ColoringBookOrder | undefined>;
   updateOrderProgress(id: number, currentPage: number, generatedImages: string[]): Promise<void>;
   updateOrderStatus(id: number, status: string, completedAt?: Date): Promise<void>;
+  getOrdersToResume(): Promise<ColoringBookOrder[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -34,6 +35,10 @@ export class DatabaseStorage implements IStorage {
     await db.update(coloringBookOrders)
       .set({ status, completedAt })
       .where(eq(coloringBookOrders.id, id));
+  }
+
+  async getOrdersToResume(): Promise<ColoringBookOrder[]> {
+    return await db.select().from(coloringBookOrders).where(eq(coloringBookOrders.status, "generating"));
   }
 }
 

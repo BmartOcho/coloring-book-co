@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { checkAndResumeOrders } from "./background-generator";
 
 const app = express();
 const httpServer = createServer(app);
@@ -87,6 +88,11 @@ export function log(message: string, source = "express") {
     },
     () => {
       log(`serving on port ${port}`);
+      
+      // Check for and resume any interrupted orders after server starts
+      checkAndResumeOrders().catch(err => {
+        console.error("Failed to check for orders to resume:", err);
+      });
     },
   );
 })();
