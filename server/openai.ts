@@ -2,9 +2,12 @@ import OpenAI, { toFile } from "openai";
 import { Buffer } from "node:buffer";
 import pRetry, { AbortError } from "p-retry";
 
+// Use direct OpenAI API if user's API key is available, otherwise fall back to Replit integration
 const client = new OpenAI({
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+  baseURL: process.env.OPENAI_API_KEY 
+    ? "https://api.openai.com/v1" 
+    : process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+  apiKey: process.env.OPENAI_API_KEY || process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
 });
 
 function isRateLimitError(error: any): boolean {
@@ -61,7 +64,7 @@ export async function convertToColoringBook(
         prompt += " No shading, gradients, or color fills - only clean line art.";
 
         const response = await client.images.edit({
-          model: "gpt-image-1",
+          model: "gpt-image-1.5",
           image: imageFile,
           prompt: prompt,
           background: "opaque",
