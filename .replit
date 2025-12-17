@@ -40,3 +40,8 @@ waitForPort = 5000
 
 [agent]
 integrations = ["javascript_openai_ai_integrations:1.0.0", "stripe:2.0.0", "resend:1.0.0"]
+
+[userenv]
+
+[userenv.production]
+DEPLOYMENT_URL = "https://www.coloringbookco.com"
