@@ -53,12 +53,15 @@ function getImageBuffer(orderId: number, sourceImageBase64: string): Buffer {
 }
 
 export async function startBackgroundGeneration(orderId: number, resumeFromPage: number = 1, baseUrl?: string): Promise<void> {
+  console.log(`[Order ${orderId}] startBackgroundGeneration called with resumeFromPage=${resumeFromPage}, baseUrl=${baseUrl}`);
+  
   // Prevent duplicate processing
   if (activeOrders.has(orderId)) {
     console.log(`[Order ${orderId}] Already being processed, skipping`);
     return;
   }
   activeOrders.add(orderId);
+  console.log(`[Order ${orderId}] Added to active orders, starting generation...`);
   
   const startTime = Date.now();
   const isResume = resumeFromPage > 1;
