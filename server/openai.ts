@@ -64,7 +64,7 @@ export async function convertToColoringBook(
         prompt += " No shading, gradients, or color fills - only clean line art.";
 
         const response = await client.images.edit({
-          model: "gpt-image-1.5",
+          model: "gpt-image-1",
           image: imageFile,
           prompt: prompt,
           background: "opaque",
