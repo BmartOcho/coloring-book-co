@@ -297,7 +297,13 @@ export async function checkAndResumeOrders(): Promise<void> {
     
     for (const order of ordersToResume) {
       const completedPages = order.generatedImages?.length || 1;
-      console.log(`[Resume] Resuming order ${order.id} from page ${completedPages + 1}`);
+      const statusInfo = order.status === "pending" ? " (was pending)" : "";
+      console.log(`[Resume] Resuming order ${order.id} from page ${completedPages + 1}${statusInfo}`);
+      
+      // Update pending orders to generating status so dashboards reflect activity
+      if (order.status === "pending") {
+        await storage.updateOrderStatus(order.id, "generating");
+      }
       
       // Start background generation for this order (will resume from where it left off)
       startBackgroundGeneration(order.id, completedPages + 1, baseUrl).catch(err => {

@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { coloringBookOrders, type InsertColoringBookOrder, type ColoringBookOrder } from "@shared/schema";
 
 const client = postgres(process.env.DATABASE_URL!);
@@ -38,7 +38,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getOrdersToResume(): Promise<ColoringBookOrder[]> {
-    return await db.select().from(coloringBookOrders).where(eq(coloringBookOrders.status, "generating"));
+    // Resume orders that are either "pending" or "generating" - both indicate incomplete orders
+    // "pending" = server died before generation started
+    // "generating" = server died during generation
+    return await db.select().from(coloringBookOrders).where(
+      or(
+        eq(coloringBookOrders.status, "pending"),
+        eq(coloringBookOrders.status, "generating")
+      )
+    );
   }
 }
 
