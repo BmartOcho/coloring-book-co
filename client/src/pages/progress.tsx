@@ -133,6 +133,14 @@ export default function ProgressPage() {
                 <p className="text-muted-foreground mb-4">
                   All {order.totalPages} pages have been generated successfully!
                 </p>
+                <Button 
+                  onClick={() => window.open(`/api/orders/${order.id}/pdf`, '_blank')}
+                  className="font-heading font-medium text-base px-8 min-h-12 rounded-xl shadow-md"
+                  data-testid="button-download-pdf"
+                >
+                  <Download className="w-5 h-5 mr-2" />
+                  Download {order.totalPages}-Page Coloring Book
+                </Button>
               </div>
             )}
           </div>

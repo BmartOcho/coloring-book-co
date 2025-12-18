@@ -145,6 +145,54 @@ export async function registerRoutes(
     }
   });
 
+  // Download order PDF endpoint - generates a multi-page PDF from all generated images
+  app.get("/api/orders/:id/pdf", async (req, res) => {
+    try {
+      const orderId = parseInt(req.params.id, 10);
+
+      if (isNaN(orderId)) {
+        return res.status(400).json({
+          error: "Invalid order ID",
+        });
+      }
+
+      const order = await storage.getOrder(orderId);
+
+      if (!order) {
+        return res.status(404).json({
+          error: "Order not found",
+        });
+      }
+
+      if (order.status !== "completed") {
+        return res.status(400).json({
+          error: "Order is not complete yet. Please wait for all pages to be generated.",
+        });
+      }
+
+      if (!order.generatedImages || order.generatedImages.length === 0) {
+        return res.status(400).json({
+          error: "No images found for this order.",
+        });
+      }
+
+      console.log(`[PDF] Generating multi-page PDF for order ${orderId} with ${order.generatedImages.length} pages`);
+
+      // Generate multi-page PDF from all images
+      const { generateMultiPagePDF } = await import("./pdf");
+      const pdfBuffer = await generateMultiPagePDF(order.generatedImages);
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="coloring-book-${orderId}.pdf"`);
+      res.send(pdfBuffer);
+    } catch (error: any) {
+      console.error("PDF generation error:", error);
+      res.status(500).json({
+        error: error.message || "Failed to generate PDF",
+      });
+    }
+  });
+
   // Get order progress endpoint
   app.get("/api/orders/:id", async (req, res) => {
     try {
