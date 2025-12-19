@@ -1,8 +1,14 @@
 import { storage } from "./storage";
 import { convertToColoringBook } from "./openai";
-import { selectRandomPrompts } from "./prompts";
+import { selectRandomPrompts, getAllPrompts } from "./prompts";
 import { sendCompletionEmail } from "./email";
 import { Buffer } from "node:buffer";
+import {
+  recordPromptFailure,
+  isPromptBlocked,
+  getBlockedPrompts,
+  getPromptTrackingSummary,
+} from "./prompt-tracker";
 
 // p-queue is ESM-only, so we use dynamic import
 let PQueueClass: any = null;
@@ -22,15 +28,13 @@ async function loadPQueue(): Promise<any> {
   // Try different ways the export might be structured
   if (typeof pqModule.default === "function") {
     PQueueClass = pqModule.default;
-  } else if (typeof (pqModule.default as any)?.default === "function") {
-    // Double-wrapped default (some bundlers do this)
-    PQueueClass = (pqModule.default as any).default;
+  } else if (typeof pqModule.default?.default === "function") {
+    PQueueClass = pqModule.default.default;
   } else if (typeof (pqModule as any).PQueue === "function") {
     PQueueClass = (pqModule as any).PQueue;
   } else if (typeof pqModule === "function") {
     PQueueClass = pqModule;
   } else {
-    // Last resort: try to find any function export
     for (const key of Object.keys(pqModule)) {
       if (typeof (pqModule as any)[key] === "function") {
         console.log(`[p-queue] Found function at key: ${key}`);
@@ -56,15 +60,26 @@ async function loadPQueue(): Promise<any> {
 // Generates 30 unique coloring pages based on the source image
 
 // Parallel processing configuration
-// OpenAI image edit typically allows ~5 requests/minute
-// We use 2 concurrent with 4/min rate limit for safety
 const CONCURRENT_GENERATIONS = 2;
+const MAX_PROMPT_RETRIES = 5; // Max times to try alternative prompts for a single page
 
 // Track active orders to prevent duplicate processing
 const activeOrders = new Set<number>();
 
-// Cache for prepared image buffers (avoid re-decoding base64 for each page)
+// Cache for prepared image buffers
 const imageBufferCache = new Map<number, Buffer>();
+
+// Check if an error is a moderation block
+function isModerationError(error: any): boolean {
+  const errorMsg = error?.message || String(error);
+  const errorCode = error?.code || "";
+  return (
+    errorCode === "moderation_blocked" ||
+    errorMsg.includes("moderation_blocked") ||
+    errorMsg.includes("rejected by the safety system") ||
+    errorMsg.includes("content policy")
+  );
+}
 
 async function generateSinglePage(
   sourceImageBuffer: Buffer,
@@ -81,6 +96,30 @@ async function generateSinglePage(
   return coloringImage;
 }
 
+// Get available prompts (excluding blocked ones)
+function getAvailablePrompts(): string[] {
+  const allPrompts = getAllPrompts();
+  const blockedPrompts = new Set(getBlockedPrompts());
+
+  const available = allPrompts.filter((p) => !blockedPrompts.has(p));
+
+  console.log(
+    `[Prompts] ${available.length} available (${blockedPrompts.size} blocked)`,
+  );
+
+  return available;
+}
+
+// Select random prompts, excluding blocked ones and already-used ones
+function selectAvailablePrompts(
+  count: number,
+  excludePrompts: Set<string> = new Set(),
+): string[] {
+  const available = getAvailablePrompts().filter((p) => !excludePrompts.has(p));
+  const shuffled = [...available].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count);
+}
+
 // Prepare and cache image buffer for reuse across all pages
 function getImageBuffer(orderId: number, sourceImageBase64: string): Buffer {
   const cached = imageBufferCache.get(orderId);
@@ -88,7 +127,6 @@ function getImageBuffer(orderId: number, sourceImageBase64: string): Buffer {
     return cached;
   }
 
-  // Remove data URL prefix if present
   const base64Data = sourceImageBase64.includes("base64,")
     ? sourceImageBase64.split("base64,")[1]
     : sourceImageBase64;
@@ -111,6 +149,12 @@ export async function startBackgroundGeneration(
     `[Order ${orderId}] startBackgroundGeneration called with resumeFromPage=${resumeFromPage}, baseUrl=${baseUrl}`,
   );
 
+  // Log prompt tracking summary at start
+  const trackingSummary = getPromptTrackingSummary();
+  console.log(
+    `[Order ${orderId}] Prompt status: ${trackingSummary.blocked} blocked, ${trackingSummary.warning} warning, ${trackingSummary.total} tracked`,
+  );
+
   // Prevent duplicate processing
   if (activeOrders.has(orderId)) {
     console.log(`[Order ${orderId}] Already being processed, skipping`);
@@ -124,15 +168,15 @@ export async function startBackgroundGeneration(
   const startTime = Date.now();
   const isResume = resumeFromPage > 1;
 
-  // Create a dedicated queue for this order (allows cleanup/cancellation)
+  // Create a dedicated queue for this order
   const orderQueue = new PQueue({
     concurrency: CONCURRENT_GENERATIONS,
     intervalCap: 4,
-    interval: 60000, // Per minute rate limit
+    interval: 60000,
   });
 
-  // Flag to stop processing on failure
-  let hasFailed = false;
+  // Track which prompts we've used or tried (to avoid repeats)
+  const usedPrompts = new Set<string>();
 
   try {
     console.log(
@@ -157,33 +201,24 @@ export async function startBackgroundGeneration(
       );
     }
 
-    // Get the detail level from the order (default to "1" if not set)
     const detailLevel = (order.detailLevel === "2" ? "2" : "1") as "1" | "2";
-
-    // Pre-cache the image buffer
     const sourceImageBuffer = getImageBuffer(orderId, order.sourceImage);
 
-    // Initialize results array with existing images (for resume support)
+    // Initialize results array with existing images
     const pageResults: (string | null)[] = new Array(order.totalPages).fill(
       null,
     );
 
-    // Copy existing images into the results array
     const existingImages = order.generatedImages || [];
     for (let i = 0; i < existingImages.length; i++) {
       pageResults[i] = existingImages[i];
     }
 
-    // If no existing images, at least page 1 is done
     if (existingImages.length === 0) {
       pageResults[0] = order.initialColoringImage;
     }
 
-    // Track progress - count existing images
     let successCount = Math.max(existingImages.length, 1);
-    let failCount = 0;
-
-    // Calculate how many pages still need to be generated
     const pagesNeeded = order.totalPages - successCount;
 
     if (pagesNeeded <= 0) {
@@ -196,11 +231,12 @@ export async function startBackgroundGeneration(
       return;
     }
 
-    // Select prompts for remaining pages
-    const scenePrompts = selectRandomPrompts(pagesNeeded);
+    // Select initial prompts (excluding blocked ones)
+    const initialPrompts = selectAvailablePrompts(pagesNeeded);
+    initialPrompts.forEach((p) => usedPrompts.add(p));
 
     console.log(
-      `[Order ${orderId}] ${isResume ? "Resuming" : "Starting"} generation of ${pagesNeeded} pages (${successCount} already done)`,
+      `[Order ${orderId}] Starting generation of ${pagesNeeded} pages (${successCount} already done)`,
     );
     console.log(
       `[Order ${orderId}] Detail level: ${detailLevel === "1" ? "Simple" : "Complex"}`,
@@ -209,7 +245,7 @@ export async function startBackgroundGeneration(
       `[Order ${orderId}] Parallel mode: ${CONCURRENT_GENERATIONS} concurrent, 4/min rate limit`,
     );
 
-    // Build page generation tasks for remaining pages only
+    // Build page generation tasks
     const pageTasks: {
       pageNumber: number;
       arrayIndex: number;
@@ -217,136 +253,197 @@ export async function startBackgroundGeneration(
     }[] = [];
     let promptIndex = 0;
     for (let i = 0; i < order.totalPages; i++) {
-      if (pageResults[i] === null && promptIndex < scenePrompts.length) {
+      if (pageResults[i] === null && promptIndex < initialPrompts.length) {
         pageTasks.push({
           pageNumber: i + 1,
           arrayIndex: i,
-          scenePrompt: scenePrompts[promptIndex],
+          scenePrompt: initialPrompts[promptIndex],
         });
         promptIndex++;
       }
     }
 
-    // Generate pages in parallel using p-queue
-    const generatePageTask = async (task: (typeof pageTasks)[0]) => {
-      // Short-circuit if already failed
-      if (hasFailed) {
-        console.log(`Skipping page ${task.pageNumber} - order already failed`);
-        return { pageNumber: task.pageNumber, success: false, skipped: true };
-      }
+    // Track overall generation status
+    let totalFailures = 0;
+    const MAX_TOTAL_FAILURES = 50; // Give up if we have too many failures overall
 
-      try {
-        console.log(
-          `Generating page ${task.pageNumber}/${order.totalPages} for order ${orderId}: "${task.scenePrompt}"`,
-        );
+    // Generate a single page with retry logic for moderation errors
+    const generatePageWithRetry = async (
+      pageNumber: number,
+      arrayIndex: number,
+      initialPrompt: string,
+    ): Promise<{ success: boolean; prompt?: string }> => {
+      let currentPrompt = initialPrompt;
+      let attempts = 0;
 
-        const pageImage = await generateSinglePage(
-          sourceImageBuffer,
-          detailLevel,
-          task.scenePrompt,
-        );
+      while (attempts < MAX_PROMPT_RETRIES) {
+        attempts++;
 
-        // Store result in the correct slot
-        pageResults[task.arrayIndex] = pageImage;
-        successCount++;
-
-        // Count contiguous pages from the start (for ordered images in DB)
-        let contiguousCount = 0;
-        for (let i = 0; i < pageResults.length; i++) {
-          if (pageResults[i] !== null) {
-            contiguousCount++;
-          } else {
-            break;
+        // Skip if prompt is blocked
+        if (isPromptBlocked(currentPrompt)) {
+          console.log(
+            `[Order ${orderId}] Page ${pageNumber}: Prompt blocked, getting alternative`,
+          );
+          const alternatives = selectAvailablePrompts(1, usedPrompts);
+          if (alternatives.length === 0) {
+            console.error(
+              `[Order ${orderId}] Page ${pageNumber}: No more available prompts!`,
+            );
+            return { success: false };
           }
+          currentPrompt = alternatives[0];
+          usedPrompts.add(currentPrompt);
+          continue;
         }
 
-        // Store only contiguous images in correct order, but report successCount for progress %
-        const contiguousImages = pageResults
-          .slice(0, contiguousCount)
-          .filter((img): img is string => img !== null);
+        try {
+          console.log(
+            `[Order ${orderId}] Page ${pageNumber} attempt ${attempts}: "${currentPrompt.substring(0, 50)}..."`,
+          );
 
-        // Use successCount for progress percentage display (actual completed count)
-        // Store contiguous images for proper PDF ordering
-        await storage.updateOrderProgress(
-          orderId,
-          successCount,
-          contiguousImages,
-        );
+          const pageImage = await generateSinglePage(
+            sourceImageBuffer,
+            detailLevel,
+            currentPrompt,
+          );
 
-        console.log(
-          `[Order ${orderId}] Page ${task.pageNumber} complete (${successCount}/${order.totalPages} total, ${contiguousCount} contiguous)`,
-        );
+          // Success!
+          pageResults[arrayIndex] = pageImage;
+          successCount++;
 
-        return { pageNumber: task.pageNumber, success: true };
-      } catch (error) {
-        console.error(
-          `Error generating page ${task.pageNumber} for order ${orderId}:`,
-          error,
-        );
-        failCount++;
-        hasFailed = true;
+          // Update progress
+          let contiguousCount = 0;
+          for (let i = 0; i < pageResults.length; i++) {
+            if (pageResults[i] !== null) {
+              contiguousCount++;
+            } else {
+              break;
+            }
+          }
 
-        // Clear the queue to stop processing more pages
-        orderQueue.clear();
+          const contiguousImages = pageResults
+            .slice(0, contiguousCount)
+            .filter((img): img is string => img !== null);
+          await storage.updateOrderProgress(
+            orderId,
+            successCount,
+            contiguousImages,
+          );
 
-        return { pageNumber: task.pageNumber, success: false, error };
+          console.log(
+            `[Order ${orderId}] Page ${pageNumber} complete (${successCount}/${order.totalPages} total)`,
+          );
+
+          return { success: true, prompt: currentPrompt };
+        } catch (error: any) {
+          const errorMessage = error?.message || String(error);
+
+          if (isModerationError(error)) {
+            // Record the failure for this prompt
+            const failureCount = recordPromptFailure(
+              currentPrompt,
+              errorMessage,
+            );
+            console.log(
+              `[Order ${orderId}] Page ${pageNumber}: Moderation blocked for "${currentPrompt.substring(0, 40)}..." (failure #${failureCount})`,
+            );
+
+            // Get an alternative prompt
+            const alternatives = selectAvailablePrompts(1, usedPrompts);
+            if (alternatives.length === 0) {
+              console.error(
+                `[Order ${orderId}] Page ${pageNumber}: No more available prompts after moderation block!`,
+              );
+              totalFailures++;
+              return { success: false };
+            }
+
+            currentPrompt = alternatives[0];
+            usedPrompts.add(currentPrompt);
+            console.log(
+              `[Order ${orderId}] Page ${pageNumber}: Trying alternative prompt: "${currentPrompt.substring(0, 40)}..."`,
+            );
+          } else {
+            // Non-moderation error - this is more serious
+            console.error(
+              `[Order ${orderId}] Page ${pageNumber}: Non-moderation error:`,
+              errorMessage,
+            );
+            totalFailures++;
+
+            // For non-moderation errors, we might want to retry the same prompt
+            // (could be a transient API issue)
+            if (attempts >= MAX_PROMPT_RETRIES) {
+              return { success: false };
+            }
+
+            // Wait a bit before retrying on transient errors
+            await new Promise((resolve) => setTimeout(resolve, 5000));
+          }
+        }
       }
+
+      console.error(
+        `[Order ${orderId}] Page ${pageNumber}: Exhausted all ${MAX_PROMPT_RETRIES} retry attempts`,
+      );
+      totalFailures++;
+      return { success: false };
     };
 
-    // Add all tasks to the queue and wait for queue to become idle
-    // Using onIdle() instead of Promise.all to handle queue.clear() properly
-    pageTasks.forEach((task) => {
-      orderQueue
-        .add(() => generatePageTask(task))
-        .catch(() => {
-          // Errors are already handled in generatePageTask, this catch prevents unhandled rejections
-        });
+    // Process all pages with the queue
+    const pagePromises = pageTasks.map((task) => {
+      return orderQueue.add(async () => {
+        // Check if we've had too many failures overall
+        if (totalFailures >= MAX_TOTAL_FAILURES) {
+          console.log(
+            `[Order ${orderId}] Page ${task.pageNumber}: Skipping due to too many total failures`,
+          );
+          return { pageNumber: task.pageNumber, success: false, skipped: true };
+        }
+
+        const result = await generatePageWithRetry(
+          task.pageNumber,
+          task.arrayIndex,
+          task.scenePrompt,
+        );
+        return { pageNumber: task.pageNumber, ...result };
+      });
     });
 
-    // Wait for the queue to finish (handles both success and cleared cases)
+    // Wait for all pages to complete
+    await Promise.all(pagePromises);
+
+    // Wait for queue to fully drain
     await orderQueue.onIdle();
 
-    // Check if any pages failed
-    if (hasFailed || failCount > 0) {
-      console.error(
-        `Order ${orderId}: ${failCount} pages failed to generate - marking as failed`,
-      );
-      imageBufferCache.delete(orderId);
-      activeOrders.delete(orderId);
-      await storage.updateOrderStatus(orderId, "failed");
-      return;
-    }
-
-    // Build final ordered array of images (filter out any nulls)
+    // Check final results
     const finalImages = pageResults.filter(
       (img): img is string => img !== null,
     );
 
-    // Verify we have all pages
-    if (finalImages.length !== order.totalPages) {
+    if (finalImages.length < order.totalPages) {
       console.error(
-        `Order ${orderId}: Expected ${order.totalPages} pages but got ${finalImages.length} - marking as failed`,
+        `[Order ${orderId}] Only generated ${finalImages.length}/${order.totalPages} pages - marking as failed`,
       );
+      console.error(`[Order ${orderId}] Total failures: ${totalFailures}`);
       imageBufferCache.delete(orderId);
       activeOrders.delete(orderId);
       await storage.updateOrderStatus(orderId, "failed");
       return;
     }
 
-    // Final progress update with complete ordered array
+    // Success! All pages generated
     await storage.updateOrderProgress(orderId, order.totalPages, finalImages);
-
-    // Clean up cache and tracking
     imageBufferCache.delete(orderId);
     activeOrders.delete(orderId);
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     await storage.updateOrderStatus(orderId, "completed", new Date());
     console.log(
-      `Order ${orderId} completed with ${finalImages.length} pages in ${elapsed}s`,
+      `[Order ${orderId}] Completed with ${finalImages.length} pages in ${elapsed}s`,
     );
 
-    // Send completion email with download link
+    // Send completion email
     if (order.email && baseUrl) {
       const progressUrl = `${baseUrl}/progress/${orderId}`;
       try {
@@ -362,18 +459,33 @@ export async function startBackgroundGeneration(
       }
     }
   } catch (error) {
-    console.error(`Background generation failed for order ${orderId}:`, error);
+    console.error(`[Order ${orderId}] Background generation failed:`, error);
     imageBufferCache.delete(orderId);
     activeOrders.delete(orderId);
-    orderQueue.clear();
     await storage.updateOrderStatus(orderId, "failed");
   }
 }
 
 // Check for and resume any interrupted orders on server startup
 export async function checkAndResumeOrders(): Promise<void> {
-  // Pre-load PQueue to catch any import errors early
+  // Pre-load PQueue
   await loadPQueue();
+
+  // Log prompt tracking status at startup
+  const trackingSummary = getPromptTrackingSummary();
+  console.log(
+    `[Resume] Prompt tracking: ${trackingSummary.total} prompts tracked, ${trackingSummary.blocked} blocked`,
+  );
+  if (trackingSummary.blocked > 0) {
+    console.log(`[Resume] Blocked prompts:`);
+    trackingSummary.prompts
+      .filter((p) => p.blocked)
+      .forEach((p) =>
+        console.log(
+          `  - "${p.prompt.substring(0, 50)}..." (${p.count} failures)`,
+        ),
+      );
+  }
 
   try {
     const ordersToResume = await storage.getOrdersToResume();
@@ -385,8 +497,6 @@ export async function checkAndResumeOrders(): Promise<void> {
 
     console.log(`[Resume] Found ${ordersToResume.length} order(s) to resume`);
 
-    // Construct base URL for emails
-    // Priority: DEPLOYMENT_URL env > Replit deployment domain > dev domain > localhost
     let baseUrl = process.env.DEPLOYMENT_URL;
 
     if (!baseUrl) {
@@ -394,13 +504,10 @@ export async function checkAndResumeOrders(): Promise<void> {
       const replOwner = process.env.REPL_OWNER;
 
       if (process.env.REPLIT_DEPLOYMENT && replSlug) {
-        // Production deployment
         baseUrl = `https://${replSlug}.replit.app`;
       } else if (replSlug && replOwner) {
-        // Dev environment
         baseUrl = `https://${replSlug}.${replOwner}.repl.co`;
       } else {
-        // Fallback to localhost
         baseUrl = `http://localhost:${process.env.PORT || 5000}`;
       }
     }
@@ -414,12 +521,10 @@ export async function checkAndResumeOrders(): Promise<void> {
         `[Resume] Resuming order ${order.id} from page ${completedPages + 1}${statusInfo}`,
       );
 
-      // Update pending orders to generating status so dashboards reflect activity
       if (order.status === "pending") {
         await storage.updateOrderStatus(order.id, "generating");
       }
 
-      // Start background generation for this order (will resume from where it left off)
       startBackgroundGeneration(order.id, completedPages + 1, baseUrl).catch(
         (err) => {
           console.error(`[Resume] Failed to resume order ${order.id}:`, err);
