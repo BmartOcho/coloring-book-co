@@ -5,7 +5,52 @@ import { sendCompletionEmail } from "./email";
 import { Buffer } from "node:buffer";
 
 // p-queue is ESM-only, so we use dynamic import
-let PQueue: any;
+let PQueueClass: any = null;
+
+// Helper to load PQueue dynamically (handles ESM/CJS interop)
+async function loadPQueue(): Promise<any> {
+  if (PQueueClass) {
+    return PQueueClass;
+  }
+
+  const pqModule = await import("p-queue");
+
+  // Debug: log what we got from the import
+  console.log("[p-queue] Module keys:", Object.keys(pqModule));
+  console.log("[p-queue] typeof default:", typeof pqModule.default);
+
+  // Try different ways the export might be structured
+  if (typeof pqModule.default === "function") {
+    PQueueClass = pqModule.default;
+  } else if (typeof (pqModule.default as any)?.default === "function") {
+    // Double-wrapped default (some bundlers do this)
+    PQueueClass = (pqModule.default as any).default;
+  } else if (typeof (pqModule as any).PQueue === "function") {
+    PQueueClass = (pqModule as any).PQueue;
+  } else if (typeof pqModule === "function") {
+    PQueueClass = pqModule;
+  } else {
+    // Last resort: try to find any function export
+    for (const key of Object.keys(pqModule)) {
+      if (typeof (pqModule as any)[key] === "function") {
+        console.log(`[p-queue] Found function at key: ${key}`);
+        PQueueClass = (pqModule as any)[key];
+        break;
+      }
+    }
+  }
+
+  if (!PQueueClass) {
+    console.error(
+      "[p-queue] Full module dump:",
+      JSON.stringify(pqModule, null, 2),
+    );
+    throw new Error("Could not find PQueue constructor in p-queue module");
+  }
+
+  console.log("[p-queue] Loaded successfully");
+  return PQueueClass;
+}
 
 // Background generation for full coloring books
 // Generates 30 unique coloring pages based on the source image
@@ -59,11 +104,8 @@ export async function startBackgroundGeneration(
   resumeFromPage: number = 1,
   baseUrl?: string,
 ): Promise<void> {
-  // Dynamic import for ESM compatibility with CommonJS build
-  if (!PQueue) {
-    const pqModule = await import("p-queue");
-    PQueue = pqModule.default;
-  }
+  // Load PQueue dynamically for ESM compatibility
+  const PQueue = await loadPQueue();
 
   console.log(
     `[Order ${orderId}] startBackgroundGeneration called with resumeFromPage=${resumeFromPage}, baseUrl=${baseUrl}`,
@@ -330,11 +372,8 @@ export async function startBackgroundGeneration(
 
 // Check for and resume any interrupted orders on server startup
 export async function checkAndResumeOrders(): Promise<void> {
-  // Dynamic import for ESM compatibility with CommonJS build
-  if (!PQueue) {
-    const pqModule = await import("p-queue");
-    PQueue = pqModule.default;
-  }
+  // Pre-load PQueue to catch any import errors early
+  await loadPQueue();
 
   try {
     const ordersToResume = await storage.getOrdersToResume();
