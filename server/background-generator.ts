@@ -1,5 +1,5 @@
 import { storage } from "./storage";
-import { convertToColoringBook } from "./openai";
+import { convertToColoringBook } from "./gemini";
 import { selectRandomPrompts, getAllPrompts } from "./prompts";
 import { sendCompletionEmail } from "./email";
 import { Buffer } from "node:buffer";
