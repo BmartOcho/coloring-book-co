@@ -1,13 +1,10 @@
-import OpenAI, { toFile } from "openai";
+import { GoogleGenAI } from "@google/genai";
 import { Buffer } from "node:buffer";
 import pRetry, { AbortError } from "p-retry";
 
-// Use direct OpenAI API if user's API key is available, otherwise fall back to Replit integration
-const client = new OpenAI({
-  baseURL: process.env.OPENAI_API_KEY 
-    ? "https://api.openai.com/v1" 
-    : process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-  apiKey: process.env.OPENAI_API_KEY || process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+// Initialize Gemini API client
+const genAI = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
 });
 
 function isRateLimitError(error: any): boolean {
@@ -37,9 +34,7 @@ export async function convertToColoringBook(
           mimeType = "image/webp";
         }
 
-        const imageFile = await toFile(imageBuffer, fileName, {
-          type: mimeType,
-        });
+        const imageBase64 = imageBuffer.toString("base64");
 
         let prompt = "";
         
@@ -63,29 +58,37 @@ export async function convertToColoringBook(
 
         prompt += " No shading, gradients, or color fills - only clean line art.";
 
-        const response = await client.images.edit({
-          model: "gpt-image-1",
-          image: imageFile,
-          prompt: prompt,
-          background: "opaque",
-          output_format: "png",
-          quality: "high",
-          size: "1024x1536",
+        // Use Nano Banana Pro (gemini-3-pro-image-preview)
+        // See: https://ai.google.dev/gemini-api/docs/nanobanana
+        const response = await genAI.models.generateContent({
+          model: "gemini-3-pro-image-preview",
+          contents: [
+            { text: prompt },
+            {
+              inlineData: {
+                mimeType: mimeType,
+                data: imageBase64,
+              },
+            },
+          ],
+          config: {
+            responseModalities: ["IMAGE"],
+          }
         });
 
-        console.log("OpenAI images.edit response received");
+        console.log("Gemini generateContent response received");
 
-        const imageBase64 = response.data?.[0]?.b64_json;
+        const generatedImageBase64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
 
-        if (!imageBase64) {
+        if (!generatedImageBase64) {
           console.error(
             "No image result in response:",
             JSON.stringify(response, null, 2),
           );
-          throw new Error("No image data received from OpenAI");
+          throw new Error("No image data received from Gemini");
         }
 
-        return "data:image/png;base64," + imageBase64;
+        return "data:image/png;base64," + generatedImageBase64;
       } catch (error: any) {
         console.error("Error converting image:", error);
 

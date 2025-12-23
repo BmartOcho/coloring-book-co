@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { imageConversionRequestSchema, createOrderRequestSchema } from "@shared/schema";
-import { convertToColoringBook } from "./openai";
+import { convertToColoringBook } from "./gemini";
 import { generateColoringBookPDF } from "./pdf";
 import { storage } from "./storage";
 import { sendOrderConfirmationEmail } from "./email";
