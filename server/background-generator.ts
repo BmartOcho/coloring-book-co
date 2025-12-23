@@ -21,10 +21,6 @@ async function loadPQueue(): Promise<any> {
 
   const pqModule = await import("p-queue");
 
-  // Debug: log what we got from the import
-  console.log("[p-queue] Module keys:", Object.keys(pqModule));
-  console.log("[p-queue] typeof default:", typeof pqModule.default);
-
   // Try different ways the export might be structured
   if (typeof pqModule.default === "function") {
     PQueueClass = pqModule.default;
